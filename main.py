@@ -1,51 +1,46 @@
-import asyncio
-import json
 import os
+import asyncio
 from telegram import Bot
-from telegram.ext import ApplicationBuilder, ContextTypes
+from telegram.constants import ParseMode
+from telegram.ext import ApplicationBuilder
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fetch_news import fetch_news
 
-TOKEN = os.getenv("BOT_TOKEN") or "7957685811:AAGC3ruFWuHouVsbsPt6TiPSv15CTduoyxA"
-GROUP_ID = -1002514471809  # گروه سردبیری
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+EDITORIAL_CHAT_ID = -1002514471809  # آیدی گروه سردبیری
 
-app = ApplicationBuilder().token(TOKEN).build()
-scheduler = AsyncIOScheduler()
+bot = Bot(token=BOT_TOKEN)
 
-sent_titles = set()
-
-async def send_news(context: ContextTypes.DEFAULT_TYPE):
-    global sent_titles
+async def send_news():
     try:
         news_list = fetch_news()
         for news in news_list:
-            if news['title'] in sent_titles:
-                continue
-            sent_titles.add(news['title'])
-
-            message = f"<b>{news['source']}</b> | {news['title']}"
-            if news.get("summary"):
-                message += f"\n\n{news['summary']}"
-
-            await app.bot.send_message(
-                chat_id=GROUP_ID,
-                text=message,
-                parse_mode="HTML",
-                disable_web_page_preview=False
-            )
+            message = f"📰 <b>{news['title']}</b>\n\n{news['summary']}\n\n🌐 <i>{news['source']}</i>\n\n🔗 {news['link']}"
+            if news.get("image"):
+                await bot.send_photo(
+                    chat_id=EDITORIAL_CHAT_ID,
+                    photo=news["image"],
+                    caption=message,
+                    parse_mode=ParseMode.HTML
+                )
+            else:
+                await bot.send_message(
+                    chat_id=EDITORIAL_CHAT_ID,
+                    text=message,
+                    parse_mode=ParseMode.HTML
+                )
     except Exception as e:
-        print(f"خطا در ارسال خبر: {e}")
+        print(f"❌ خطا در ارسال خبر: {e}")
 
-@app.on_startup
-async def startup(_: ContextTypes.DEFAULT_TYPE) -> None:
+async def main():
     print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
-    scheduler.add_job(send_news, "interval", minutes=1, next_run_time=None)
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(send_news, "interval", minutes=1)
     scheduler.start()
 
-if __name__ == '__main__':
-    async def send_test_message():
-        bot = Bot(token=TOKEN)
-        await bot.send_message(chat_id=GROUP_ID, text="🧪 تست ارسال دستی")
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    await app.run_polling()
 
-    asyncio.run(send_test_message())
-    app.run_polling()
+if __name__ == "__main__":
+    asyncio.run(main())
