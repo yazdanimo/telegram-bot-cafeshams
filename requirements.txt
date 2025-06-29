@@ -1,6 +1,7 @@
 python-telegram-bot==20.8
 feedparser
-beautifulsoup4
 requests
-deep-translator
-langdetect
+beautifulsoup4
+googletrans==4.0.0-rc1
+sumy
+apscheduler
