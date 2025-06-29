@@ -1,36 +1,36 @@
 import os
 import asyncio
 import logging
-from telegram.ext import ApplicationBuilder, CommandHandler
-from fetch_news import fetch_new_articles
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+from fetch_news import fetch_and_send_news
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-async def start(update, context):
-    await update.message.reply_text("سلام! ربات خبری کافه شمس فعال است ☕📰")
+GROUP_ID = -1002514471809  # آیدی عددی گروه سردبیری
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("✅ ربات خبری کافه شمس فعال است!")
+
+async def news_loop(app):
+    while True:
+        try:
+            await fetch_and_send_news(app.bot, GROUP_ID)
+        except Exception as e:
+            logger.error(f"❌ خطا در حلقه fetch: {e}")
+        await asyncio.sleep(15)  # هر 15 ثانیه یک‌بار بررسی شود
 
 async def main():
     token = os.getenv("BOT_TOKEN")
-    if not token:
-        raise ValueError("❌ BOT_TOKEN environment variable not set!")
-
-    print("Starting bot...")
-
     app = ApplicationBuilder().token(token).build()
 
     app.add_handler(CommandHandler("start", start))
 
-    async def fetch_and_send_news():
-        while True:
-            await fetch_new_articles(app)
-            await asyncio.sleep(15)
-
-    asyncio.create_task(fetch_and_send_news())
-
-    await app.run_polling()
+    # اجرای همزمان ربات و حلقه ارسال خبر
+    async with app:
+        asyncio.create_task(news_loop(app))
+        await app.run_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
