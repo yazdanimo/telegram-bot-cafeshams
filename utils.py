@@ -3,10 +3,11 @@ from bs4 import BeautifulSoup
 
 async def fetch_url(session, url):
     try:
-        async with session.get(url, timeout=10) as response:
+        timeout = aiohttp.ClientTimeout(total=20)
+        async with session.get(url, timeout=timeout) as response:
             return await response.text()
     except Exception as e:
-        print(f"خطا در دریافت URL: {url} → {e}")
+        print(f"⛔️ خطا در دریافت URL: {url} → {e}")
         return None
 
 async def extract_news_title_and_image(html, source):
@@ -34,3 +35,4 @@ async def extract_news_title_and_image(html, source):
     except Exception as e:
         print(f"خطا در استخراج تیتر/عکس: {e}")
         return f"{source} | خبر جدید", None
+   
