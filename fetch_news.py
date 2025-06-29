@@ -3,11 +3,10 @@ import feedparser
 import html
 import requests
 from bs4 import BeautifulSoup
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 from telegram import InputMediaPhoto
 
-translator = Translator()
-
+# منابع خبری حرفه‌ای (بین‌المللی و ایرانی)
 RSS_SOURCES = {
     "BBC": "http://feeds.bbci.co.uk/news/rss.xml",
     "Reuters": "http://feeds.reuters.com/reuters/topNews",
@@ -37,18 +36,21 @@ def translate_if_needed(text):
     if not text:
         return ""
     if any(ord(c) > 1500 for c in text):
-        return text  # فارسی است
-    translated = translator.translate(text, dest="fa").text
-    return translated
+        return text  # اگر متن فارسی باشد، نیازی به ترجمه نیست
+    try:
+        return GoogleTranslator(source='auto', target='fa').translate(text)
+    except:
+        return text  # اگر ترجمه شکست خورد، همان متن اصلی را برگردان
 
 def extract_image(entry):
+    # تلاش برای یافتن تصویر از RSS
     if 'media_content' in entry:
         for media in entry.media_content:
             if 'url' in media:
                 return media['url']
     if 'links' in entry:
         for link in entry.links:
-            if link.type and "image" in link.type:
+            if hasattr(link, 'type') and "image" in link.type:
                 return link.href
     return None
 
@@ -66,8 +68,7 @@ async def fetch_and_send_news(bot, group_id):
             title = html.unescape(entry.get("title", "❗️ تیتر یافت نشد"))
             link = entry.get("link", "")
             summary_html = entry.get("summary", "")
-            summary = BeautifulSoup(summary_html, "html.parser").get_text()
-            summary = summary.strip()
+            summary = BeautifulSoup(summary_html, "html.parser").get_text().strip()
 
             title_translated = translate_if_needed(title)
             summary_translated = translate_if_needed(summary)
@@ -81,7 +82,7 @@ async def fetch_and_send_news(bot, group_id):
                     await bot.send_photo(
                         chat_id=group_id,
                         photo=image_url,
-                        caption=text[:1024],  # کپشن محدودیت دارد
+                        caption=text[:1024],  # محدودیت کپشن تلگرام
                         parse_mode="HTML"
                     )
                 else:
