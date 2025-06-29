@@ -26,12 +26,11 @@ async def send_news(context: ContextTypes.DEFAULT_TYPE):
                     continue
 
                 html = await fetch_url(session, link)
-                title, image_url = await extract_news_title_and_image(html, source["name"])
+                title, image_url = await extract_news_title_and_image(html, source["name"], link)
                 keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📎 مشاهده خبر", url=link)]])
 
                 try:
                     if image_url:
-                        # تست سلامت عکس قبل از ارسال
                         try:
                             async with session.get(image_url, timeout=5) as img_response:
                                 if img_response.status == 200:
