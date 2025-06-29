@@ -1,45 +1,60 @@
-import aiohttp
-from bs4 import BeautifulSoup
+import asyncio, os, feedparser, aiohttp
+from dotenv import load_dotenv
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, JobQueue
+from telegram.request import HTTPXRequest
+from utils import fetch_url, extract_news_title_and_image
+from news_sources import news_sources
 
-async def fetch_url(session, url):
-    try:
-        timeout = aiohttp.ClientTimeout(total=20)
-        async with session.get(url, timeout=timeout) as response:
-            return await response.text()
-    except Exception as e:
-        print(f"⛔️ خطا در دریافت URL: {url} → {e}")
-        return None
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+EDITOR_GROUP_ID = int(os.getenv("EDITOR_GROUP_ID"))
+SENT_LINKS = set()
 
-async def extract_news_title_and_image(html, source):
-    try:
-        soup = BeautifulSoup(html, 'html.parser')
+# پاسخ به /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("سلام! 👋\nربات خبری کافه شمس فعال است ✅")
 
-        # تلاش برای یافتن عنوان
-        title = None
-        for tag in [
-            soup.find("meta", property="og:title"),
-            soup.find("meta", attrs={"name": "title"}),
-            soup.title
-        ]:
-            if tag:
-                title = tag.get("content") or tag.string
-                if title:
-                    title = title.strip()
-                    break
+# ارسال خودکار اخبار
+async def send_news(context: ContextTypes.DEFAULT_TYPE):
+    async with aiohttp.ClientSession() as session:
+        for source in news_sources:
+            feed = feedparser.parse(source["url"])
+            for entry in feed.entries[:5]:
+                link = entry.link
+                if link in SENT_LINKS:
+                    continue
 
-        # اگر باز هم عنوان نداشت
-        if not title:
-            title = "❗️ تیتر یافت نشد"
+                html = await fetch_url(session, link)
+                title, image_url = await extract_news_title_and_image(html, source["name"])
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📎 مشاهده خبر", url=link)]])
 
-        # منبع را اول تیتر اضافه کن
-        full_title = f"{source} | {title}"
+                try:
+                    if image_url:
+                        await context.bot.send_photo(chat_id=EDITOR_GROUP_ID, photo=image_url, caption=title, reply_markup=keyboard)
+                    else:
+                        await context.bot.send_message(chat_id=EDITOR_GROUP_ID, text=title, reply_markup=keyboard)
+                    print(f"✅ ارسال خبر موفق: {title}")
+                except Exception as e:
+                    print(f"⛔️ خطا در ارسال به تلگرام: {e}")
 
-        # تصویر خبر
-        img_tag = soup.find("meta", property="og:image")
-        image_url = img_tag["content"] if img_tag else None
+                SENT_LINKS.add(link)
 
-        return full_title, image_url
+# اجرای اصلی
+async def main():
+    request = HTTPXRequest(read_timeout=20, write_timeout=20, connect_timeout=10)
+    app = ApplicationBuilder().token(BOT_TOKEN).request(request).build()
 
-    except Exception as e:
-        print(f"⛔️ خطا در تجزیه HTML برای خبر: {e}")
-        return f"{source} | ❗️خطا در دریافت تیتر", None
+    app.add_handler(CommandHandler("start", start))
+
+    job_queue = JobQueue()
+    job_queue.set_application(app)
+    job_queue.run_repeating(send_news, interval=15, first=5)
+
+    await app.initialize()
+    await app.start()
+    await job_queue.start()
+    print("✅ ربات خبری کافه شمس آماده است!")
+
+if __name__ == "__main__":
+    asyncio.run(main())
