@@ -1,6 +1,5 @@
 import aiohttp
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
 
 async def fetch_url(session, url):
     try:
@@ -11,7 +10,7 @@ async def fetch_url(session, url):
         print(f"⛔️ خطا در دریافت URL: {url} → {e}")
         return None
 
-async def extract_news_title_and_image(html, source):
+async def extract_news_title_and_image(html, source, url):
     try:
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -28,23 +27,17 @@ async def extract_news_title_and_image(html, source):
                     title = title.strip()
                     break
 
-        # اگر هنوز title پیدا نشده
+        # استثنای دقیق برای IRNA
+        if not title and "irna.ir" in url:
+            h1 = soup.find("h1", class_="title title-news")
+            if h1 and h1.text:
+                title = h1.text.strip()
+
+        # استثنا برای فارس و تسنیم
         if not title:
-            # بررسی دامنه منبع خبر
-            parsed = soup.find("meta", property="og:url")
-            url = parsed["content"] if parsed else ""
-
-            # استثنا برای IRNA
-            if "irna.ir" in url:
-                h1 = soup.find("h1", class_="title title-news")
-                if h1 and h1.text:
-                    title = h1.text.strip()
-
-            # استثنا برای فارس و تسنیم
-            if not title:
-                h1_alt = soup.find("h1", class_=lambda x: x and "title" in x.lower())
-                if h1_alt and h1_alt.text:
-                    title = h1_alt.text.strip()
+            h1_alt = soup.find("h1", class_=lambda x: x and "title" in x.lower())
+            if h1_alt and h1_alt.text:
+                title = h1_alt.text.strip()
 
         if not title:
             title = "❗️ تیتر یافت نشد"
