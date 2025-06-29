@@ -19,7 +19,7 @@ async def news_loop(app):
             await fetch_and_send_news(app.bot, GROUP_ID)
         except Exception as e:
             logger.error(f"❌ خطا در حلقه fetch: {e}")
-        await asyncio.sleep(15)  # هر 15 ثانیه یک‌بار بررسی شود
+        await asyncio.sleep(15)
 
 async def main():
     token = os.getenv("BOT_TOKEN")
@@ -27,7 +27,6 @@ async def main():
 
     app.add_handler(CommandHandler("start", start))
 
-    # اجرای همزمان ربات و حلقه ارسال خبر
     async with app:
         asyncio.create_task(news_loop(app))
         await app.run_polling()
