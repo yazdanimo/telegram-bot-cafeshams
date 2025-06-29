@@ -1,62 +1,51 @@
-
-import os
 import asyncio
-from telegram import Bot, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
-from fetch_news import fetch_news
+import json
+import os
+from telegram import Bot
+from telegram.ext import ApplicationBuilder, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fetch_news import fetch_news
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_ID = -1002514471809
+TOKEN = os.getenv("BOT_TOKEN") or "7957685811:AAGC3ruFWuHouVsbsPt6TiPSv15CTduoyxA"
+GROUP_ID = -1002514471809  # گروه سردبیری
 
-bot = Bot(token=BOT_TOKEN)
+app = ApplicationBuilder().token(TOKEN).build()
+scheduler = AsyncIOScheduler()
 
-def format_message(news):
-    text = f"🗞 <b>{news['source']}</b>\n\n"
-    text += f"<b>{news['title']}</b>\n\n"
-    text += f"{news['summary']}\n\n"
-    return text.strip()
+sent_titles = set()
 
-def build_keyboard(news):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔗 خواندن کامل خبر", url=news['link'])]
-    ])
+async def send_news(context: ContextTypes.DEFAULT_TYPE):
+    global sent_titles
+    try:
+        news_list = fetch_news()
+        for news in news_list:
+            if news['title'] in sent_titles:
+                continue
+            sent_titles.add(news['title'])
 
-async def send_news():
-    news_list = fetch_news()
-    print(f"📦 {len(news_list)} خبر برای ارسال آماده است.")
-    for news in news_list:
-        try:
-            text = format_message(news)
-            keyboard = build_keyboard(news)
-            print(f"➡️ تلاش برای ارسال: {news['title']}")
-            if news["image"]:
-                await bot.send_photo(
-                    chat_id=GROUP_ID,
-                    photo=news["image"],
-                    caption=text,
-                    reply_markup=keyboard,
-                    parse_mode=ParseMode.HTML
-                )
-            else:
-                await bot.send_message(
-                    chat_id=GROUP_ID,
-                    text=text,
-                    reply_markup=keyboard,
-                    parse_mode=ParseMode.HTML
-                )
-            print(f"📤 ارسال موفق: {news['title']}")
-            await asyncio.sleep(2)
-        except Exception as e:
-            print(f"❌ ارسال ناموفق برای '{news['title']}': {e}")
+            message = f"<b>{news['source']}</b> | {news['title']}"
+            if news.get("summary"):
+                message += f"\n\n{news['summary']}"
 
-async def main():
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(send_news, "interval", minutes=1)
-    scheduler.start()
+            await app.bot.send_message(
+                chat_id=GROUP_ID,
+                text=message,
+                parse_mode="HTML",
+                disable_web_page_preview=False
+            )
+    except Exception as e:
+        print(f"خطا در ارسال خبر: {e}")
+
+@app.on_startup
+async def startup(_: ContextTypes.DEFAULT_TYPE) -> None:
     print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
-    while True:
-        await asyncio.sleep(3600)
+    scheduler.add_job(send_news, "interval", minutes=1, next_run_time=None)
+    scheduler.start()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == '__main__':
+    async def send_test_message():
+        bot = Bot(token=TOKEN)
+        await bot.send_message(chat_id=GROUP_ID, text="🧪 تست ارسال دستی")
+
+    asyncio.run(send_test_message())
+    app.run_polling()
