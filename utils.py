@@ -1,8 +1,19 @@
+import aiohttp
+from bs4 import BeautifulSoup
+
+async def fetch_url(session, url):
+    try:
+        async with session.get(url, timeout=10) as response:
+            return await response.text()
+    except Exception as e:
+        print(f"خطا در دریافت URL: {url} → {e}")
+        return None
+
 async def extract_news_title_and_image(html, source):
     try:
         soup = BeautifulSoup(html, 'html.parser')
 
-        # گرفتن عنوان حرفه‌ای‌تر
+        # گرفتن عنوان حرفه‌ای
         title_tag = (
             soup.find("meta", property="og:title") or
             soup.find("meta", attrs={"name": "title"}) or
