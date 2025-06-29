@@ -12,7 +12,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8443))
     domain = os.getenv("WEBHOOK_DOMAIN")
 
-    webhook_url = f"https://{domain}/"  # بدون /توکن یا مسیر سفارشی
+    webhook_url = f"https://{domain}/"
 
     print(f"📡 در حال راه‌اندازی webhook روی: {webhook_url}")
 
