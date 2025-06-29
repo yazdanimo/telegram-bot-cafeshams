@@ -6,33 +6,36 @@ from telegram.ext import ApplicationBuilder
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fetch_news import fetch_news
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-EDITORIAL_CHAT_ID = -1002514471809  # آیدی گروه سردبیری
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+EDITORIAL_CHAT_ID = -1002514471809  # آیدی عددی گروه سردبیری
 
 bot = Bot(token=BOT_TOKEN)
 
 async def send_news():
     try:
         news_list = fetch_news()
+        if not news_list:
+            print("⚠️ خبری برای ارسال وجود ندارد.")
+            return
         for news in news_list:
-            message = f"📰 <b>{news['title']}</b>\n\n{news['summary']}\n\n🌐 <i>{news['source']}</i>\n\n🔗 {news['link']}"
+            text = f"📰 <b>{news['title']}</b>\n\n{news['summary']}\n\n🌐 <i>{news['source']}</i>\n🔗 {news['link']}"
             if news.get("image"):
                 await bot.send_photo(
                     chat_id=EDITORIAL_CHAT_ID,
                     photo=news["image"],
-                    caption=message,
+                    caption=text,
                     parse_mode=ParseMode.HTML
                 )
             else:
                 await bot.send_message(
                     chat_id=EDITORIAL_CHAT_ID,
-                    text=message,
+                    text=text,
                     parse_mode=ParseMode.HTML
                 )
     except Exception as e:
         print(f"❌ خطا در ارسال خبر: {e}")
 
-async def main():
+async def start():
     print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
 
     scheduler = AsyncIOScheduler()
@@ -40,7 +43,8 @@ async def main():
     scheduler.start()
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    await app.run_polling()
+    app_job = asyncio.create_task(app.run_polling())
+    await app_job
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(start())
