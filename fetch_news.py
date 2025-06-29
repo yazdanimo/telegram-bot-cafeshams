@@ -1,134 +1,128 @@
-import json
 import feedparser
-import html
+import hashlib
+import json
+import os
 import requests
 from bs4 import BeautifulSoup
-from telegram import InputMediaPhoto
-from langdetect import detect
-from deep_translator import GoogleTranslator
-from difflib import SequenceMatcher
+from googletrans import Translator
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
 
-# فهرست منابع خبری
-RSS_SOURCES = {
-    "Reuters": "http://feeds.reuters.com/reuters/topNews",
-    "Associated Press": "https://apnews.com/rss",
-    "AFP": "https://www.afp.com/en/rss",
-    "Al Jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
-    "Bloomberg": "https://www.bloomberg.com/feed/podcast/etf-report.xml",
-    "Channel NewsAsia": "https://www.channelnewsasia.com/rssfeeds/8395986",
-    "CNN": "http://rss.cnn.com/rss/edition.rss",
-    "Deutsche Welle": "https://rss.dw.com/rdf/rss-fa-all",
-    "IRNA": "https://irna.ir/rss.aspx?lang=fa&id=34",
-    "Fars News": "https://www.farsnews.ir/rss",
-    "Tasnim News": "https://www.tasnimnews.com/fa/rss/feed/0/0/0/",
-    "Mehr News": "https://www.mehrnews.com/rss",
-    "Russia Today": "https://www.rt.com/rss/news/",
-    "China Daily": "https://www.chinadaily.com.cn/rss/china_rss.xml",
-    "United Press International": "https://rss.upi.com/news/top_news.rss",
-    "Anadolu Agency": "https://www.aa.com.tr/en/rss/default?cat=0",
-    "BBC News": "http://feeds.bbci.co.uk/news/rss.xml",
-    "The New York Times": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
-    "The Guardian": "https://www.theguardian.com/world/rss",
-    "Le Monde": "https://www.lemonde.fr/rss/une.xml",
-    "El Pais": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
-    "France 24": "https://www.france24.com/en/rss",
-    "Al-Araby Al-Jadeed": "https://www.alaraby.co.uk/english/rss",
-    "The Washington Post": "https://feeds.washingtonpost.com/rss/world",
-    "Hindustan Times": "https://www.hindustantimes.com/rss/topnews/rssfeed.xml",
-    "The Times of India": "https://timesofindia.indiatimes.com/rss.cms",
-    "Newsweek": "https://www.newsweek.com/feed",
-    "The Independent": "https://www.independent.co.uk/news/world/rss",
-    "Le Matin": "https://www.lematin.ch/rss",
-    "Corriere della Sera": "https://xml2.corriereobjects.it/rss/homepage.xml",
-    "Süddeutsche Zeitung": "https://rss.sueddeutsche.de/rss/Topthemen"
-}
+STATS_FILE = "stats.json"
+SOURCES_FILE = "sources.json"
+LANGUAGES = ['en', 'fa']
 
-SENT_NEWS_FILE = "stats.json"
+translator = Translator()
 
-def load_sent_news():
+# بارگذاری فهرست تیترهای قبلاً ارسال شده
+def load_sent_titles():
+    if not os.path.exists(STATS_FILE):
+        return set()
+    with open(STATS_FILE, "r", encoding="utf-8") as f:
+        try:
+            data = json.load(f)
+            return set(data.get("sent_titles", []))
+        except:
+            return set()
+
+# ذخیره تیتر جدید
+def save_sent_title(title_hash):
+    titles = load_sent_titles()
+    titles.add(title_hash)
+    with open(STATS_FILE, "w", encoding="utf-8") as f:
+        json.dump({"sent_titles": list(titles)}, f, ensure_ascii=False, indent=2)
+
+# بررسی اینکه خبر تکراریه یا نه
+def is_duplicate(title):
+    title_hash = hashlib.md5(title.lower().strip().encode("utf-8")).hexdigest()
+    return title_hash in load_sent_titles()
+
+def make_hash(title):
+    return hashlib.md5(title.lower().strip().encode("utf-8")).hexdigest()
+
+# خلاصه کردن متن خبر
+def summarize(text, sentences_count=2):
+    parser = PlaintextParser.from_string(text, Tokenizer("english"))
+    summarizer = LsaSummarizer()
+    summary = summarizer(parser.document, sentences_count)
+    return " ".join([str(sentence) for sentence in summary])
+
+# تشخیص زبان و ترجمه
+def translate_if_needed(text):
+    detected = translator.detect(text).lang
+    if detected not in LANGUAGES:
+        return translator.translate(text, dest="en").text
+    elif detected == "en":
+        return translator.translate(text, dest="fa").text
+    return text
+
+# استخراج عکس از لینک خبر
+def extract_image(url):
     try:
-        with open(SENT_NEWS_FILE, "r") as f:
-            return json.load(f)
+        res = requests.get(url, timeout=5)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        og_img = soup.find("meta", property="og:image")
+        if og_img and og_img["content"]:
+            return og_img["content"]
     except:
-        return {}
+        return None
 
-def save_sent_news(data):
-    with open(SENT_NEWS_FILE, "w") as f:
-        json.dump(data, f)
+# فیلتر کردن خبرهای غیرتولیدی یا بازنشرشده
+def is_unique_content(title, summary):
+    keywords = ["رویترز", "آسوشیتدپرس", "نقل", "بازنشر", "به گزارش", "به نقل از"]
+    return not any(k in title or k in summary for k in keywords)
 
-def is_duplicate(title, sent_titles):
-    for old_title in sent_titles:
-        ratio = SequenceMatcher(None, title, old_title).ratio()
-        if ratio > 0.85:  # شباهت بالا
-            return True
-    return False
+# خواندن منابع از sources.json
+def load_sources():
+    with open(SOURCES_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-def extract_image(entry):
-    if 'media_content' in entry:
-        for media in entry.media_content:
-            if 'url' in media:
-                return media['url']
-    if 'links' in entry:
-        for link in entry.links:
-            if hasattr(link, 'type') and "image" in link.type:
-                return link.href
-    return None
+# پردازش و جمع‌آوری خبرها
+def fetch_news():
+    sent_titles = load_sent_titles()
+    sources = load_sources()
 
-def translate_if_not_fa_or_en(text):
-    try:
-        lang = detect(text)
-        if lang not in ['fa', 'en']:
-            return GoogleTranslator(source='auto', target='en').translate(text)
-        return text
-    except:
-        return text
+    all_news = []
 
-async def fetch_and_send_news(bot, group_id):
-    sent = load_sent_news()
-    sent_titles = list(sent.values())  # تیترهای قبلاً ارسال‌شده
+    for source in sources:
+        feed = feedparser.parse(source["url"])
+        source_name = source["name"]
 
-    for source, url in RSS_SOURCES.items():
-        feed = feedparser.parse(url)
+        for entry in feed.entries:
+            title = entry.title.strip()
+            link = entry.link
+            summary = entry.get("summary", "").strip()
 
-        for entry in feed.entries[:10]:
-            news_id = entry.get("id") or entry.get("link")
-            if not news_id:
+            if not title or is_duplicate(title):
                 continue
 
-            title = html.unescape(entry.get("title", "❗️ تیتر یافت نشد"))
-            if is_duplicate(title, sent_titles):
+            # خلاصه‌سازی
+            if len(summary) > 300:
+                summary = summarize(summary)
+
+            # فیلتر اخبار بازنشر شده
+            if not is_unique_content(title, summary):
                 continue
 
-            link = entry.get("link", "")
-            summary_html = entry.get("summary", "")
-            summary = BeautifulSoup(summary_html, "html.parser").get_text().strip()
+            # ترجمه در صورت نیاز
+            title_translated = translate_if_needed(title)
+            summary_translated = translate_if_needed(summary)
 
-            # ترجمه اگر زبان غیر از فارسی یا انگلیسی بود
-            title = translate_if_not_fa_or_en(title)
-            summary = translate_if_not_fa_or_en(summary)
+            image_url = extract_image(link)
 
-            image_url = extract_image(entry)
-            text = f"<b>{source}</b> | {title}\n\n{summary}\n\n<a href='{link}'>مطالعه بیشتر</a>"
+            # ذخیره هش تیتر
+            title_hash = make_hash(title)
+            save_sent_title(title_hash)
 
-            try:
-                if image_url:
-                    await bot.send_photo(
-                        chat_id=group_id,
-                        photo=image_url,
-                        caption=text[:1024],
-                        parse_mode="HTML"
-                    )
-                else:
-                    await bot.send_message(
-                        chat_id=group_id,
-                        text=text,
-                        parse_mode="HTML",
-                        disable_web_page_preview=False
-                    )
-                print(f"✅ خبر ارسال شد: {source} | {title}")
-                sent[news_id] = title
-                save_sent_news(sent)
-                sent_titles.append(title)
+            news_item = {
+                "source": source_name,
+                "title": title_translated,
+                "summary": summary_translated,
+                "link": link,
+                "image": image_url
+            }
 
-            except Exception as e:
-                print(f"❌ خطا در ارسال خبر: {e}")
+            all_news.append(news_item)
+
+    return all_news
