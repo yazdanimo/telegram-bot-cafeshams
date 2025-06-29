@@ -1,3 +1,5 @@
-python-telegram-bot[webhooks]==20.8
-feedparser
+python-telegram-bot==20.3
+aiohttp
 beautifulsoup4
+feedparser
+python-dotenv
