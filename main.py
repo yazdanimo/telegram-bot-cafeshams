@@ -1,9 +1,9 @@
 import asyncio, os, feedparser, aiohttp
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, JobQueue
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, JobQueue
 from telegram.request import HTTPXRequest
-from utils import fetch_url, extract_news_title_and_image
+from utils import fetch_url, extract_news_title_image_text
 from news_sources import news_sources
 
 load_dotenv()
@@ -26,7 +26,8 @@ async def send_news(context: ContextTypes.DEFAULT_TYPE):
                     continue
 
                 html = await fetch_url(session, link)
-                title, image_url = await extract_news_title_and_image(html, source["name"], link)
+                title, image_url, text = await extract_news_title_image_text(html, source["name"], link)
+                caption = f"{title}\n\n📝 {text}" if text else title
                 keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📎 مشاهده خبر", url=link)]])
 
                 try:
@@ -37,27 +38,27 @@ async def send_news(context: ContextTypes.DEFAULT_TYPE):
                                     await context.bot.send_photo(
                                         chat_id=EDITOR_GROUP_ID,
                                         photo=image_url,
-                                        caption=title,
+                                        caption=caption,
                                         reply_markup=keyboard
                                     )
                                 else:
                                     print(f"⚠️ عکس بارگذاری نشد ({img_response.status})")
                                     await context.bot.send_message(
                                         chat_id=EDITOR_GROUP_ID,
-                                        text=title,
+                                        text=caption,
                                         reply_markup=keyboard
                                     )
                         except Exception as e:
                             print(f"⚠️ خطا در دریافت عکس: {e}")
                             await context.bot.send_message(
                                 chat_id=EDITOR_GROUP_ID,
-                                text=title,
+                                text=caption,
                                 reply_markup=keyboard
                             )
                     else:
                         await context.bot.send_message(
                             chat_id=EDITOR_GROUP_ID,
-                            text=title,
+                            text=caption,
                             reply_markup=keyboard
                         )
 
