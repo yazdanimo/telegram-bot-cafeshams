@@ -1,11 +1,12 @@
-import asyncio
 import os
+import asyncio
 from telegram import Bot, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from fetch_news import fetch_news
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_ID = -1002514471809  # گروه سردبیری محمد
+GROUP_ID = -1002514471809
 
 bot = Bot(token=BOT_TOKEN)
 
@@ -41,9 +42,18 @@ async def send_news():
                     reply_markup=keyboard,
                     parse_mode=ParseMode.HTML
                 )
-            await asyncio.sleep(2)  # کمی فاصله برای جلوگیری از بن
+            await asyncio.sleep(2)
         except Exception as e:
             print(f"❌ ارسال ناموفق: {e}")
 
+# راه‌اندازی زمان‌بندی هر ۱ دقیقه
+async def main():
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(send_news, "interval", minutes=1)
+    scheduler.start()
+    print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
+    while True:
+        await asyncio.sleep(3600)
+
 if __name__ == "__main__":
-    asyncio.run(send_news())
+    asyncio.run(main())
