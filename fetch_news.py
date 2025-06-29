@@ -4,7 +4,11 @@ import html
 import requests
 from bs4 import BeautifulSoup
 from telegram import InputMediaPhoto
+from langdetect import detect
+from deep_translator import GoogleTranslator
+from difflib import SequenceMatcher
 
+# فهرست منابع خبری
 RSS_SOURCES = {
     "Reuters": "http://feeds.reuters.com/reuters/topNews",
     "Associated Press": "https://apnews.com/rss",
@@ -52,6 +56,13 @@ def save_sent_news(data):
     with open(SENT_NEWS_FILE, "w") as f:
         json.dump(data, f)
 
+def is_duplicate(title, sent_titles):
+    for old_title in sent_titles:
+        ratio = SequenceMatcher(None, title, old_title).ratio()
+        if ratio > 0.85:  # شباهت بالا
+            return True
+    return False
+
 def extract_image(entry):
     if 'media_content' in entry:
         for media in entry.media_content:
@@ -63,24 +74,40 @@ def extract_image(entry):
                 return link.href
     return None
 
+def translate_if_not_fa_or_en(text):
+    try:
+        lang = detect(text)
+        if lang not in ['fa', 'en']:
+            return GoogleTranslator(source='auto', target='en').translate(text)
+        return text
+    except:
+        return text
+
 async def fetch_and_send_news(bot, group_id):
     sent = load_sent_news()
+    sent_titles = list(sent.values())  # تیترهای قبلاً ارسال‌شده
 
     for source, url in RSS_SOURCES.items():
         feed = feedparser.parse(url)
 
         for entry in feed.entries[:10]:
             news_id = entry.get("id") or entry.get("link")
-            if not news_id or news_id in sent:
+            if not news_id:
                 continue
 
             title = html.unescape(entry.get("title", "❗️ تیتر یافت نشد"))
+            if is_duplicate(title, sent_titles):
+                continue
+
             link = entry.get("link", "")
             summary_html = entry.get("summary", "")
             summary = BeautifulSoup(summary_html, "html.parser").get_text().strip()
 
-            image_url = extract_image(entry)
+            # ترجمه اگر زبان غیر از فارسی یا انگلیسی بود
+            title = translate_if_not_fa_or_en(title)
+            summary = translate_if_not_fa_or_en(summary)
 
+            image_url = extract_image(entry)
             text = f"<b>{source}</b> | {title}\n\n{summary}\n\n<a href='{link}'>مطالعه بیشتر</a>"
 
             try:
@@ -99,8 +126,9 @@ async def fetch_and_send_news(bot, group_id):
                         disable_web_page_preview=False
                     )
                 print(f"✅ خبر ارسال شد: {source} | {title}")
-                sent[news_id] = True
+                sent[news_id] = title
                 save_sent_news(sent)
+                sent_titles.append(title)
 
             except Exception as e:
                 print(f"❌ خطا در ارسال خبر: {e}")
