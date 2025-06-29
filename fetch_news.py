@@ -3,10 +3,9 @@ import feedparser
 import html
 import requests
 from bs4 import BeautifulSoup
-from deep_translator import GoogleTranslator
 from telegram import InputMediaPhoto
 
-# منابع خبری حرفه‌ای (بین‌المللی و ایرانی)
+# منابع خبری حرفه‌ای
 RSS_SOURCES = {
     "BBC": "http://feeds.bbci.co.uk/news/rss.xml",
     "Reuters": "http://feeds.reuters.com/reuters/topNews",
@@ -32,18 +31,7 @@ def save_sent_news(data):
     with open(SENT_NEWS_FILE, "w") as f:
         json.dump(data, f)
 
-def translate_if_needed(text):
-    if not text:
-        return ""
-    if any(ord(c) > 1500 for c in text):
-        return text  # اگر متن فارسی باشد، نیازی به ترجمه نیست
-    try:
-        return GoogleTranslator(source='auto', target='fa').translate(text)
-    except:
-        return text  # اگر ترجمه شکست خورد، همان متن اصلی را برگردان
-
 def extract_image(entry):
-    # تلاش برای یافتن تصویر از RSS
     if 'media_content' in entry:
         for media in entry.media_content:
             if 'url' in media:
@@ -70,19 +58,16 @@ async def fetch_and_send_news(bot, group_id):
             summary_html = entry.get("summary", "")
             summary = BeautifulSoup(summary_html, "html.parser").get_text().strip()
 
-            title_translated = translate_if_needed(title)
-            summary_translated = translate_if_needed(summary)
-
             image_url = extract_image(entry)
 
-            text = f"<b>{source}</b> | {title_translated}\n\n{summary_translated}\n\n<a href='{link}'>مطالعه بیشتر</a>"
+            text = f"<b>{source}</b> | {title}\n\n{summary}\n\n<a href='{link}'>مطالعه بیشتر</a>"
 
             try:
                 if image_url:
                     await bot.send_photo(
                         chat_id=group_id,
                         photo=image_url,
-                        caption=text[:1024],  # محدودیت کپشن تلگرام
+                        caption=text[:1024],
                         parse_mode="HTML"
                     )
                 else:
