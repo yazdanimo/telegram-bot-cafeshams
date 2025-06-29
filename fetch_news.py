@@ -1,47 +1,57 @@
-import feedparser
-import hashlib
 import json
-import os
+import feedparser
+import html
+import requests
+from bs4 import BeautifulSoup
+from telegram import InputMediaPhoto
 
-def fetch_new_articles():
-    with open("sources.json", "r", encoding="utf-8") as f:
-        sources = json.load(f)
+# فهرست منابع RSS برای شروع
+RSS_SOURCES = {
+    "BBC": "http://feeds.bbci.co.uk/news/rss.xml",
+    "IRNA": "https://irna.ir/rss.aspx?lang=fa&id=34",
+}
 
-    if not os.path.exists("data/stats.json"):
-        stats = {"seen_hashes": []}
-    else:
-        with open("data/stats.json", "r", encoding="utf-8") as f:
-            stats = json.load(f)
+SENT_NEWS_FILE = "stats.json"
 
-    new_articles = []
+def load_sent_news():
+    try:
+        with open(SENT_NEWS_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
 
-    for source in sources:
-        feed = feedparser.parse(source["url"])
-        for entry in feed.entries:
-            title = entry.get("title", "")
-            summary = entry.get("summary", "")
-            link = entry.get("link", "")
-            lang = source.get("lang", "en")
+def save_sent_news(data):
+    with open(SENT_NEWS_FILE, "w") as f:
+        json.dump(data, f)
 
-            content_hash = hashlib.sha256(f"{title}{link}".encode()).hexdigest()
+async def fetch_and_send_news(bot, group_id):
+    sent = load_sent_news()
 
-            if content_hash in stats["seen_hashes"]:
+    for source, url in RSS_SOURCES.items():
+        feed = feedparser.parse(url)
+
+        for entry in feed.entries[:10]:
+            news_id = entry.get("id") or entry.get("link")
+            if not news_id or news_id in sent:
                 continue
 
-            stats["seen_hashes"].append(content_hash)
+            title = html.unescape(entry.get("title", "❗️ تیتر یافت نشد"))
+            link = entry.get("link", "")
+            summary = BeautifulSoup(entry.get("summary", ""), "html.parser").get_text()
 
-            new_articles.append({
-                "title": title,
-                "summary": summary,
-                "link": link,
-                "source": source["name"],
-                "lang": lang
-            })
+            text = f"<b>{source}</b> | {title}\n\n{summary}\n\n<a href='{link}'>مطالعه بیشتر</a>"
 
-    stats["seen_hashes"] = stats["seen_hashes"][-1000:]
+            try:
+                # ارسال به تلگرام
+                await bot.send_message(
+                    chat_id=group_id,
+                    text=text,
+                    parse_mode="HTML",
+                    disable_web_page_preview=False
+                )
+                print(f"✅ خبر ارسال شد: {source} | {title}")
+                sent[news_id] = True
+                save_sent_news(sent)
 
-    with open("data/stats.json", "w", encoding="utf-8") as f:
-        json.dump(stats, f, ensure_ascii=False, indent=2)
-
-    return new_articles
-
+            except Exception as e:
+                print(f"❌ خطا در ارسال خبر: {e}")
