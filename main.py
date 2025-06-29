@@ -1,4 +1,4 @@
-import asyncio, os, feedparser
+import asyncio, os, feedparser, aiohttp
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, JobQueue
@@ -11,7 +11,7 @@ EDITOR_GROUP_ID = int(os.getenv("EDITOR_GROUP_ID"))
 SENT_LINKS = set()
 
 async def send_news(context: ContextTypes.DEFAULT_TYPE):
-    async with context.application.http_session() as session:
+    async with aiohttp.ClientSession() as session:
         for source in news_sources:
             feed = feedparser.parse(source["url"])
             for entry in feed.entries[:5]:
@@ -37,8 +37,6 @@ async def main():
     await app.start()
     await job_queue.start()
     print("✅ ربات خبری کافه شمس آماده است!")
-
-    # حذف app.idle() چون باعث خطا می‌شه
 
 if __name__ == "__main__":
     asyncio.run(main())
