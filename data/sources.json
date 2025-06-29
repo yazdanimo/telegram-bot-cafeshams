@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Reuters",
+    "url": "https://feeds.reuters.com/reuters/topNews"
+  },
+  {
+    "name": "Associated Press",
+    "url": "https://apnews.com/rss"
+  },
+  {
+    "name": "Al Jazeera",
+    "url": "https://www.aljazeera.com/xml/rss/all.xml"
+  },
+  {
+    "name": "Agence France-Presse",
+    "url": "https://www.afp.com/en/rss"
+  },
+  {
+    "name": "Bloomberg",
+    "url": "https://www.bloomberg.com/feed/podcast/etf-report.xml"
+  },
+  {
+    "name": "CNN",
+    "url": "http://rss.cnn.com/rss/edition.rss"
+  },
+  {
+    "name": "Deutsche Welle",
+    "url": "https://rss.dw.com/rdf/rss-en-all"
+  },
+  {
+    "name": "IRNA",
+    "url": "https://irna.ir/rss"
+  },
+  {
+    "name": "Fars News",
+    "url": "https://www.farsnews.ir/rss"
+  },
+  {
+    "name": "Tasnim News",
+    "url": "https://www.tasnimnews.com/fa/rss/feed/0/0/1"
+  },
+  {
+    "name": "Mehr News",
+    "url": "https://www.mehrnews.com/rss"
+  },
+  {
+    "name": "The New York Times",
+    "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+  },
+  {
+    "name": "The Guardian",
+    "url": "https://www.theguardian.com/world/rss"
+  },
+  {
+    "name": "Washington Post",
+    "url": "https://feeds.washingtonpost.com/rss/world"
+  },
+  {
+    "name": "BBC World",
+    "url": "http://feeds.bbci.co.uk/news/world/rss.xml"
+  }
+]
