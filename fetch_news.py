@@ -2,19 +2,17 @@ import feedparser
 from bs4 import BeautifulSoup
 
 RSS_FEEDS = {
-    "BBC": "https://feeds.bbci.co.uk/persian/rss.xml",
     "IRNA": "https://www.irna.ir/rss",
     "DW": "https://www.dw.com/fa-ir/rss",
-    "Fars": "https://www.farsnews.ir/rss",
+    "Fars": "https://www.farsnews.ir/rss"
 }
 
 def extract_image(entry):
-    # تلاش برای گرفتن تصویر از description
     soup = BeautifulSoup(entry.get("description", ""), "html.parser")
     img = soup.find("img")
     return img['src'] if img and img.has_attr("src") else None
 
-def fetch_new_articles(seen_links):
+def fetch_new_articles(seen_hashes):
     new_items = []
 
     for source, url in RSS_FEEDS.items():
@@ -27,9 +25,6 @@ def fetch_new_articles(seen_links):
             link = entry.link.strip()
             summary = BeautifulSoup(entry.get("summary", ""), "html.parser").text.strip()
             image = extract_image(entry)
-
-            if link in seen_links:
-                continue
 
             new_items.append({
                 "source": source,
