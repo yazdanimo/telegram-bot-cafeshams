@@ -5,17 +5,38 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import InputMediaPhoto
 
-# منابع خبری حرفه‌ای
 RSS_SOURCES = {
-    "BBC": "http://feeds.bbci.co.uk/news/rss.xml",
     "Reuters": "http://feeds.reuters.com/reuters/topNews",
-    "AP": "https://apnews.com/rss",
+    "Associated Press": "https://apnews.com/rss",
+    "AFP": "https://www.afp.com/en/rss",
     "Al Jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
+    "Bloomberg": "https://www.bloomberg.com/feed/podcast/etf-report.xml",
+    "Channel NewsAsia": "https://www.channelnewsasia.com/rssfeeds/8395986",
     "CNN": "http://rss.cnn.com/rss/edition.rss",
     "Deutsche Welle": "https://rss.dw.com/rdf/rss-fa-all",
     "IRNA": "https://irna.ir/rss.aspx?lang=fa&id=34",
-    "Fars": "https://www.farsnews.ir/rss",
-    "Tasnim": "https://www.tasnimnews.com/fa/rss/feed/0/0/0/",
+    "Fars News": "https://www.farsnews.ir/rss",
+    "Tasnim News": "https://www.tasnimnews.com/fa/rss/feed/0/0/0/",
+    "Mehr News": "https://www.mehrnews.com/rss",
+    "Russia Today": "https://www.rt.com/rss/news/",
+    "China Daily": "https://www.chinadaily.com.cn/rss/china_rss.xml",
+    "United Press International": "https://rss.upi.com/news/top_news.rss",
+    "Anadolu Agency": "https://www.aa.com.tr/en/rss/default?cat=0",
+    "BBC News": "http://feeds.bbci.co.uk/news/rss.xml",
+    "The New York Times": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+    "The Guardian": "https://www.theguardian.com/world/rss",
+    "Le Monde": "https://www.lemonde.fr/rss/une.xml",
+    "El Pais": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
+    "France 24": "https://www.france24.com/en/rss",
+    "Al-Araby Al-Jadeed": "https://www.alaraby.co.uk/english/rss",
+    "The Washington Post": "https://feeds.washingtonpost.com/rss/world",
+    "Hindustan Times": "https://www.hindustantimes.com/rss/topnews/rssfeed.xml",
+    "The Times of India": "https://timesofindia.indiatimes.com/rss.cms",
+    "Newsweek": "https://www.newsweek.com/feed",
+    "The Independent": "https://www.independent.co.uk/news/world/rss",
+    "Le Matin": "https://www.lematin.ch/rss",
+    "Corriere della Sera": "https://xml2.corriereobjects.it/rss/homepage.xml",
+    "Süddeutsche Zeitung": "https://rss.sueddeutsche.de/rss/Topthemen"
 }
 
 SENT_NEWS_FILE = "stats.json"
