@@ -13,12 +13,14 @@ SOURCES_FILE = "sources.json"
 
 def load_sent_titles():
     if not os.path.exists(STATS_FILE):
+        print("⚠️ stats.json یافت نشد، ایجاد مجموعه خالی.")
         return set()
     with open(STATS_FILE, "r", encoding="utf-8") as f:
         try:
             data = json.load(f)
             return set(data.get("sent_titles", []))
         except:
+            print("⚠️ خطا در خواندن stats.json")
             return set()
 
 def save_sent_title(title_hash):
@@ -31,7 +33,10 @@ def make_hash(title):
     return hashlib.md5(title.lower().strip().encode("utf-8")).hexdigest()
 
 def is_duplicate(title):
-    return make_hash(title) in load_sent_titles()
+    duplicate = make_hash(title) in load_sent_titles()
+    if duplicate:
+        print(f"⏩ رد شد (تکراری): {title}")
+    return duplicate
 
 def summarize(text, sentences_count=2):
     try:
@@ -45,15 +50,8 @@ def summarize(text, sentences_count=2):
 def translate(text, source_lang="auto", target_lang="fa"):
     try:
         url = "https://libretranslate.de/translate"
-        payload = {
-            "q": text,
-            "source": source_lang,
-            "target": target_lang,
-            "format": "text"
-        }
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
+        payload = {"q": text, "source": source_lang, "target": target_lang, "format": "text"}
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
         response = requests.post(url, data=payload, headers=headers, timeout=10)
         return response.json()["translatedText"]
     except:
@@ -79,32 +77,28 @@ def extract_image(url):
     except:
         return None
 
-def is_unique_content(title, summary):
-    keywords = ["رویترز", "آسوشیتدپرس", "نقل", "بازنشر", "به گزارش", "به نقل از"]
-    return not any(k in title or k in summary for k in keywords)
-
 def load_sources():
     with open(SOURCES_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def fetch_news():
+    print("🚀 اجرای fetch_news...")
     sent_titles = load_sent_titles()
     sources = load_sources()
     all_news = []
 
     for source in sources:
+        print(f"📡 بررسی منبع: {source['name']} - {source['url']}")
         feed = feedparser.parse(source["url"])
-        source_name = source["name"]
+        print(f"➕ تعداد خبرها: {len(feed.entries)}")
 
         for entry in feed.entries:
             title = entry.title.strip()
             link = entry.link
             summary = entry.get("summary", "").strip()
+            print(f"🔍 بررسی خبر: {title}")
 
             if not title or is_duplicate(title):
-                continue
-
-            if not is_unique_content(title, summary):
                 continue
 
             if len(summary) > 300:
@@ -118,13 +112,15 @@ def fetch_news():
             save_sent_title(title_hash)
 
             news_item = {
-                "source": source_name,
+                "source": source["name"],
                 "title": title_translated,
                 "summary": summary_translated,
                 "link": link,
                 "image": image_url
             }
 
+            print(f"✅ آماده برای ارسال: {title_translated}")
             all_news.append(news_item)
 
+    print(f"✅ تعداد نهایی اخبار آماده ارسال: {len(all_news)}")
     return all_news
