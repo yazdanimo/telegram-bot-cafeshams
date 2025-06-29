@@ -1,7 +1,7 @@
 import asyncio, os, feedparser, aiohttp
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, JobQueue
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, JobQueue
 from utils import fetch_url, extract_news_title_and_image
 from news_sources import news_sources
 
@@ -9,6 +9,9 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 EDITOR_GROUP_ID = int(os.getenv("EDITOR_GROUP_ID"))
 SENT_LINKS = set()
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("سلام! 👋\nربات خبری کافه شمس فعال است ✅")
 
 async def send_news(context: ContextTypes.DEFAULT_TYPE):
     async with aiohttp.ClientSession() as session:
@@ -29,6 +32,10 @@ async def send_news(context: ContextTypes.DEFAULT_TYPE):
 
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # اضافه کردن /start
+    app.add_handler(CommandHandler("start", start))
+
     job_queue = JobQueue()
     job_queue.set_application(app)
     job_queue.run_repeating(send_news, interval=15, first=5)
