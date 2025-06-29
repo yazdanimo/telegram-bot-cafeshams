@@ -1,5 +1,6 @@
 import aiohttp
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 async def fetch_url(session, url):
     try:
@@ -27,18 +28,23 @@ async def extract_news_title_and_image(html, source):
                     title = title.strip()
                     break
 
-        # اگر عنوان پیدا نشد، استثنا برای IRNA و فارس و تسنیم
+        # اگر هنوز title پیدا نشده
         if not title:
-            # IRNA
-            h1_irna = soup.find("h1")
-            if h1_irna and h1_irna.text:
-                title = h1_irna.text.strip()
+            # بررسی دامنه منبع خبر
+            parsed = soup.find("meta", property="og:url")
+            url = parsed["content"] if parsed else ""
 
-        if not title:
-            # فارس و تسنیم
-            h1_alt = soup.find("h1", class_=lambda x: x and "title" in x.lower())
-            if h1_alt and h1_alt.text:
-                title = h1_alt.text.strip()
+            # استثنا برای IRNA
+            if "irna.ir" in url:
+                h1 = soup.find("h1", class_="title title-news")
+                if h1 and h1.text:
+                    title = h1.text.strip()
+
+            # استثنا برای فارس و تسنیم
+            if not title:
+                h1_alt = soup.find("h1", class_=lambda x: x and "title" in x.lower())
+                if h1_alt and h1_alt.text:
+                    title = h1_alt.text.strip()
 
         if not title:
             title = "❗️ تیتر یافت نشد"
