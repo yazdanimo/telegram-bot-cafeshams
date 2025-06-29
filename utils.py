@@ -1,20 +1,11 @@
-import aiohttp
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
-async def fetch_url(session, url):
-    try:
-        timeout = aiohttp.ClientTimeout(total=20)
-        async with session.get(url, timeout=timeout) as response:
-            return await response.text()
-    except Exception as e:
-        print(f"⛔️ خطا در دریافت URL: {url} → {e}")
-        return None
-
-async def extract_news_title_and_image(html, source, url):
+async def extract_news_title_image_text(html, source, url):
     try:
         soup = BeautifulSoup(html, 'html.parser')
 
-        # تلاش برای یافتن عنوان عمومی
+        # استخراج تیتر
         title = None
         for tag in [
             soup.find("meta", property="og:title"),
@@ -27,13 +18,12 @@ async def extract_news_title_and_image(html, source, url):
                     title = title.strip()
                     break
 
-        # استثنای دقیق برای IRNA
+        # پشتیبانی خاص برای IRNA
         if not title and "irna.ir" in url:
             h1 = soup.find("h1", class_="title title-news")
             if h1 and h1.text:
                 title = h1.text.strip()
 
-        # استثنا برای فارس و تسنیم
         if not title:
             h1_alt = soup.find("h1", class_=lambda x: x and "title" in x.lower())
             if h1_alt and h1_alt.text:
@@ -44,11 +34,22 @@ async def extract_news_title_and_image(html, source, url):
 
         full_title = f"{source} | {title}"
 
+        # استخراج تصویر
         img_tag = soup.find("meta", property="og:image")
         image_url = img_tag["content"] if img_tag else None
 
-        return full_title, image_url
+        # استخراج متن یا خلاصه
+        description = None
+        desc_tag = soup.find("meta", attrs={"name": "description"})
+        if desc_tag and desc_tag.get("content"):
+            description = desc_tag["content"].strip()
+        else:
+            first_p = soup.find("p")
+            if first_p and first_p.text:
+                description = first_p.text.strip()
+
+        return full_title, image_url, description or ""
 
     except Exception as e:
         print(f"⛔️ خطا در پردازش HTML: {e}")
-        return f"{source} | ❗️ خطا در دریافت تیتر", None
+        return f"{source} | ❗️ خطا در دریافت تیتر", None, ""
