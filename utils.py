@@ -14,7 +14,7 @@ async def extract_news_title_and_image(html, source):
     try:
         soup = BeautifulSoup(html, 'html.parser')
 
-        # تلاش برای یافتن عنوان از og:title یا meta یا title
+        # تلاش برای یافتن عنوان عمومی
         title = None
         for tag in [
             soup.find("meta", property="og:title"),
@@ -26,6 +26,19 @@ async def extract_news_title_and_image(html, source):
                 if title:
                     title = title.strip()
                     break
+
+        # اگر عنوان پیدا نشد، استثنا برای IRNA و فارس و تسنیم
+        if not title:
+            # IRNA
+            h1_irna = soup.find("h1")
+            if h1_irna and h1_irna.text:
+                title = h1_irna.text.strip()
+
+        if not title:
+            # فارس و تسنیم
+            h1_alt = soup.find("h1", class_=lambda x: x and "title" in x.lower())
+            if h1_alt and h1_alt.text:
+                title = h1_alt.text.strip()
 
         if not title:
             title = "❗️ تیتر یافت نشد"
