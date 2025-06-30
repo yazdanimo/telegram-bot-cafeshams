@@ -67,3 +67,5 @@ async def fetch_and_send_news():
             summary = summarize_text(text)
             caption = f"📰 {source}\n\n{summary}\n\n🔗 {url}"
             await send_news_to_channel(caption, preview=url)
+import os
+print("🗂 موجودی پوشه:", os.listdir("."))
