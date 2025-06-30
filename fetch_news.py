@@ -1,82 +1,71 @@
 import feedparser
-import hashlib
 import html
+import hashlib
 import re
 import aiohttp
-from bs4 import BeautifulSoup
-from utils import async_translate, detect_language
+import asyncio
+from datetime import datetime
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+import warnings
+from utils import clean_text, fetch_url, async_translate, detect_language, summarize_text, download_image, is_duplicate
+from telegram import InputMediaPhoto
 
-async def fetch_summary(url):
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=10) as response:
-                html_content = await response.text()
-                soup = BeautifulSoup(html_content, "html.parser")
-                paragraphs = soup.find_all("p")
-                text = " ".join(p.get_text() for p in paragraphs)
-                return text[:500]
-    except:
-        return ""
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-def clean_text(text):
-    return html.unescape(re.sub(r"\s+", " ", text)).strip()
+sent_news = set()
 
-def hash_news(title):
-    return hashlib.md5(title.encode("utf-8")).hexdigest()
-
-async def fetch_and_send_news(bot, chat_id):
-    import json
-    from datetime import datetime
-    from telegram import InputMediaPhoto
-
-    try:
-        with open("sources.json", "r", encoding="utf-8") as f:
-            sources = json.load(f)
-    except Exception as e:
-        print(f"Error loading sources: {e}")
-        return
-
-    sent_hashes = set()
-
+async def fetch_and_send_news(sources, bot, group_id):
     for source in sources:
-        url = source["url"]
-        name = source.get("name", "منبع ناشناس")
-        try:
-            feed = feedparser.parse(url)
-            for entry in feed.entries[:3]:
-                title = clean_text(entry.title)
-                link = entry.link
-                uid = hash_news(title)
+        url = source.get("url")
+        name = source.get("name")
+        language = source.get("language", "auto")
 
-                if uid in sent_hashes:
+        if not url or not name:
+            continue
+
+        try:
+            content = await fetch_url(url)
+            feed = feedparser.parse(content)
+
+            for entry in feed.entries:
+                title = html.unescape(entry.get("title", "")).strip()
+                link = entry.get("link", "").strip()
+                summary = html.unescape(entry.get("summary", "")).strip()
+                published = entry.get("published", "")
+                unique_id = hashlib.sha256((title + link).encode()).hexdigest()
+
+                if is_duplicate(unique_id):
                     continue
 
-                sent_hashes.add(uid)
+                page_html = await fetch_url(link)
+                soup = BeautifulSoup(page_html, "html.parser")
+                text = clean_text(soup.get_text())
 
-                summary = await fetch_summary(link)
-                lang = detect_language(summary or title)
+                if len(text) < 200:
+                    text += "\n" + summary
 
-                if lang not in ["en", "fa"]:
-                    summary = await async_translate(summary, target_lang="en")
-                    lang = "en"
+                lang = detect_language(text)
+                if lang not in ["fa", "en"]:
+                    text = await async_translate(text, target="en")
 
                 if lang == "en":
-                    summary = await async_translate(summary, target_lang="fa")
+                    text = await async_translate(text, target="fa")
 
-                image_url = ""
-                if "media_content" in entry:
-                    image_url = entry.media_content[0].get("url", "")
-                elif "image" in entry:
-                    image_url = entry.image.get("href", "")
+                short_text = summarize_text(text)
+                image_url = await download_image(soup)
 
-                caption = f"<b>{name} | {title}</b>\n\n{summary}\n\n<a href='{link}'>مشاهده خبر</a>"
+                caption = f"{name} | {title}\n\n{short_text}\n\n[لینک خبر]({link})"
 
-                if image_url:
-                    try:
-                        await bot.send_photo(chat_id=chat_id, photo=image_url, caption=caption, parse_mode="HTML")
-                    except:
-                        await bot.send_message(chat_id=chat_id, text=caption, parse_mode="HTML")
-                else:
-                    await bot.send_message(chat_id=chat_id, text=caption, parse_mode="HTML")
+                try:
+                    if image_url:
+                        await bot.send_photo(chat_id=group_id, photo=image_url, caption=caption, parse_mode='Markdown')
+                    else:
+                        await bot.send_message(chat_id=group_id, text=caption, parse_mode='Markdown')
+
+                    sent_news.add(unique_id)
+                    await asyncio.sleep(2)  # جلوگیری از Flood control
+                except Exception as e:
+                    print(f"❗️ خطا در ارسال خبر: {e}")
+
         except Exception as e:
             print(f"❗️ خطا در پردازش {url}: {e}")
