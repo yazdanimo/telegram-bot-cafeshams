@@ -1,11 +1,9 @@
-from fetch_news import fetch_and_send_news
-from fetch_news import fetch_and_send_news
 import os
 import json
 import asyncio
 from telegram.ext import ApplicationBuilder
-from fetch_news import fetch_and_send_news
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fetch_news import fetch_and_send_news
 
 GROUP_ID = -1002514471809
 TOKEN = os.getenv("BOT_TOKEN")
@@ -13,32 +11,22 @@ TOKEN = os.getenv("BOT_TOKEN")
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-async def scheduled_job():
-    await fetch_and_send_news(sources, bot, GROUP_ID)
+async def scheduled_job(application):
+    try:
+        bot = application.bot
+        await fetch_and_send_news(sources, bot, GROUP_ID)
+    except Exception as e:
+        print(f"❗️خطا در scheduled_job: {e}")
 
 async def main():
     application = ApplicationBuilder().token(TOKEN).build()
-    global bot
-    bot = application.bot
 
-    # راه‌اندازی زمان‌بندی
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(scheduled_job, "interval", seconds=60)
+    scheduler.add_job(scheduled_job, "interval", seconds=60, max_instances=1, coalesce=True, args=[application])
     scheduler.start()
 
-    print("🚀 ربات در حال اجراست...")
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
+    print("🚀 ربات خبری کافه شمس در حال اجراست...")
+    await application.run_polling()
 
-    # اجرای بی‌نهایت
-    await asyncio.Event().wait()
-
-# اجرای مستقیم بدون run()
 if __name__ == "__main__":
-    try:
-        loop = asyncio.get_event_loop()
-        loop.create_task(main())
-        loop.run_forever()
-    except KeyboardInterrupt:
-        print("⛔️ توقف دستی ربات")
+    asyncio.run(main())
