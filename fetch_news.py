@@ -1,11 +1,13 @@
 import feedparser
 import hashlib
+import feedparser
+import hashlib
 import json
 import os
 import requests
-from bs4 import BeautifulSoup
 import nltk
-nltk.download('punkt')
+nltk.download('punkt')  # اضافه‌شده برای حل مشکل Railway
+from bs4 import BeautifulSoup
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
