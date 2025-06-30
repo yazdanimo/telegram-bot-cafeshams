@@ -9,3 +9,4 @@ requests
 deep-translator
 langdetect
 sumy
+requests
