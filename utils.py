@@ -21,3 +21,8 @@ async def async_translate(text, target_lang="en"):
     except Exception as e:
         print(f"Translation failed: {e}")
         return text
+        import aiohttp
+
+async def fetch_url(session, url):
+    async with session.get(url, timeout=10) as response:
+        return await response.text()
