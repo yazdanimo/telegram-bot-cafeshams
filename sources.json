@@ -1,6 +1,98 @@
 [
   {
-    "name": "BBC",
-    "url": "http://feeds.bbci.co.uk/news/rss.xml"
+    "name": "Reuters",
+    "url": "http://feeds.reuters.com/reuters/topNews"
+  },
+  {
+    "name": "Associated Press",
+    "url": "https://apnews.com/rss"
+  },
+  {
+    "name": "Al Jazeera",
+    "url": "https://www.aljazeera.com/xml/rss/all.xml"
+  },
+  {
+    "name": "Bloomberg",
+    "url": "https://www.bloomberg.com/feed/podcast/etf-report.xml"
+  },
+  {
+    "name": "CNN",
+    "url": "http://rss.cnn.com/rss/edition.rss"
+  },
+  {
+    "name": "Deutsche Welle",
+    "url": "https://rss.dw.com/rdf/rss-en-all"
+  },
+  {
+    "name": "IRNA",
+    "url": "https://www.irna.ir/rss.aspx?lang=fa&id=20"
+  },
+  {
+    "name": "Fars News",
+    "url": "https://www.farsnews.ir/rss"
+  },
+  {
+    "name": "Tasnim News",
+    "url": "https://www.tasnimnews.com/fa/rss/1"
+  },
+  {
+    "name": "Mehr News",
+    "url": "https://www.mehrnews.com/rss"
+  },
+  {
+    "name": "RT (Russia Today)",
+    "url": "https://www.rt.com/rss/news/"
+  },
+  {
+    "name": "China Daily",
+    "url": "http://www.chinadaily.com.cn/rss/china_rss.xml"
+  },
+  {
+    "name": "AFP",
+    "url": "https://www.afp.com/en/rss"
+  },
+  {
+    "name": "New York Times",
+    "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+  },
+  {
+    "name": "Washington Post",
+    "url": "http://feeds.washingtonpost.com/rss/world"
+  },
+  {
+    "name": "The Guardian",
+    "url": "https://www.theguardian.com/world/rss"
+  },
+  {
+    "name": "Le Monde",
+    "url": "https://www.lemonde.fr/rss/une.xml"
+  },
+  {
+    "name": "The Times of India",
+    "url": "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms"
+  },
+  {
+    "name": "Hindustan Times",
+    "url": "https://www.hindustantimes.com/rss/topnews/rssfeed.xml"
+  },
+  {
+    "name": "The Independent",
+    "url": "https://www.independent.co.uk/news/uk/rss"
+  },
+  {
+    "name": "El Pais",
+    "url": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/inenglish"
+  },
+  {
+    "name": "Daily Mail",
+    "url": "https://www.dailymail.co.uk/articles.rss"
+  },
+  {
+    "name": "Wall Street Journal",
+    "url": "https://feeds.a.dj.com/rss/RSSWorldNews.xml"
+  },
+  {
+    "name": "Al-Ahram",
+    "url": "http://www.ahram.org.eg/rss.aspx"
   }
 ]
