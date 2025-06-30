@@ -1,0 +1,114 @@
+[
+  {
+    "name": "Reuters",
+    "url": "https://feeds.reuters.com/reuters/topNews"
+  },
+  {
+    "name": "Associated Press",
+    "url": "https://www.apnews.com/apf-topnews?format=RSS"
+  },
+  {
+    "name": "Al Jazeera",
+    "url": "https://www.aljazeera.com/xml/rss/all.xml"
+  },
+  {
+    "name": "Agence France-Presse",
+    "url": "https://www.afp.com/en/rss"
+  },
+  {
+    "name": "Bloomberg",
+    "url": "https://www.bloomberg.com/feed/podcast/etf-report.xml"
+  },
+  {
+    "name": "Channel NewsAsia",
+    "url": "https://www.channelnewsasia.com/rssfeeds/8395986"
+  },
+  {
+    "name": "CNN",
+    "url": "http://rss.cnn.com/rss/edition.rss"
+  },
+  {
+    "name": "Deutsche Welle",
+    "url": "https://rss.dw.com/rdf/rss-en-all"
+  },
+  {
+    "name": "IRNA",
+    "url": "https://irna.ir/rss.aspx?lang=fa"
+  },
+  {
+    "name": "Fars News Agency",
+    "url": "https://www.farsnews.ir/rss"
+  },
+  {
+    "name": "Tasnim News Agency",
+    "url": "https://www.tasnimnews.com/fa/rss/feed/1"
+  },
+  {
+    "name": "Mehr News Agency",
+    "url": "https://www.mehrnews.com/rss"
+  },
+  {
+    "name": "Russia Today",
+    "url": "https://www.rt.com/rss/news/"
+  },
+  {
+    "name": "China Daily",
+    "url": "http://www.chinadaily.com.cn/rss/rss.xml"
+  },
+  {
+    "name": "United Press International",
+    "url": "https://www.upi.com/rss/"
+  },
+  {
+    "name": "Jiji Press",
+    "url": "https://www.jiji.com/rss"
+  },
+  {
+    "name": "Anadolu Agency",
+    "url": "https://www.aa.com.tr/en/rss/default?cat=0"
+  },
+  {
+    "name": "The New York Times",
+    "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+  },
+  {
+    "name": "The Washington Post",
+    "url": "http://feeds.washingtonpost.com/rss/national"
+  },
+  {
+    "name": "The Guardian",
+    "url": "https://www.theguardian.com/world/rss"
+  },
+  {
+    "name": "Le Monde",
+    "url": "https://www.lemonde.fr/rss/une.xml"
+  },
+  {
+    "name": "Newsweek",
+    "url": "https://www.newsweek.com/rss"
+  },
+  {
+    "name": "The Independent",
+    "url": "https://www.independent.co.uk/news/uk/rss"
+  },
+  {
+    "name": "Foreign Affairs",
+    "url": "https://www.foreignaffairs.com/rss.xml"
+  },
+  {
+    "name": "Asr Iran",
+    "url": "https://www.asriran.com/fa/rss/1"
+  },
+  {
+    "name": "Entekhab",
+    "url": "https://www.entekhab.ir/fa/rss/1"
+  },
+  {
+    "name": "Süddeutsche Zeitung",
+    "url": "https://rss.sueddeutsche.de/rss/Topthemen"
+  },
+  {
+    "name": "The Wall Street Journal",
+    "url": "https://feeds.a.dj.com/rss/RSSWorldNews.xml"
+  }
+]
