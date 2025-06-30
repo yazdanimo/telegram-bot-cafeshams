@@ -26,7 +26,10 @@ async def main():
     scheduler.start()
 
     print("🚀 ربات خبری کافه شمس در حال اجراست...")
-    await application.run_polling()
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
