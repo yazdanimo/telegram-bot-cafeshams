@@ -1,71 +1,31 @@
-# main.py
-import asyncio
-from telegram.ext import ApplicationBuilder
-from fetch_news import fetch_and_send_news
 import os
+import asyncio
+from telegram import Bot
+from fetch_news import fetch_and_send_news
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from telegram.ext import ApplicationBuilder, CommandHandler
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")
+GROUP_ID = int(os.getenv("GROUP_ID", "-1002514471809"))
 
-async def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+bot = Bot(token=TOKEN)
 
-    async def job():
-        while True:
-            await fetch_and_send_news()
-            await asyncio.sleep(60)  # هر 1 دقیقه
+async def start(update, context):
+    await update.message.reply_text("✅ ربات خبری کافه شمس فعال است!")
 
-    asyncio.create_task(job())
-    print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
-    await app.run_polling()
+async def scheduled_job():
+    await asyncio.to_thread(fetch_and_send_news, bot, GROUP_ID)
+
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(scheduled_job, "interval", seconds=15)
+    scheduler.start()
+
+    print("🚀 ربات در حال اجراست...")
+    app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
-
-# fetch_news.py
-import json
-import aiohttp
-import feedparser
-from utils import is_duplicate, summarize_text, translate_if_needed, send_news_to_channel
-
-with open("sources.json", encoding="utf-8") as f:
-    SOURCES = json.load(f)
-
-SEEN_URLS = set()
-
-async def fetch_rss(session, url):
-    try:
-        async with session.get(url, timeout=10) as resp:
-            data = await resp.text()
-            return feedparser.parse(data)
-    except Exception:
-        return None
-
-async def fetch_all_rss():
-    async with aiohttp.ClientSession() as session:
-        tasks = [fetch_rss(session, src["url"]) for src in SOURCES if src["type"] == "rss"]
-        return await asyncio.gather(*tasks)
-
-async def fetch_and_send_news():
-    feeds = await fetch_all_rss()
-    for i, feed in enumerate(feeds):
-        if not feed or not feed.entries:
-            continue
-
-        source = SOURCES[i]["name"]
-        for entry in feed.entries[:3]:
-            url = entry.link
-            if url in SEEN_URLS or is_duplicate(url):
-                continue
-
-            SEEN_URLS.add(url)
-            title = entry.title
-            description = entry.get("summary", "")
-
-            text = f"{title}\n\n{description}"
-            text = await translate_if_needed(text)
-            summary = summarize_text(text)
-            caption = f"📰 {source}\n\n{summary}\n\n🔗 {url}"
-            await send_news_to_channel(caption, preview=url)
-import os
-print("🗂 موجودی پوشه:", os.listdir("."))
+    main()
