@@ -5,4 +5,4 @@ beautifulsoup4
 sumy
 apscheduler
 nest_asyncio
-google_trans_new
+deep-translator
