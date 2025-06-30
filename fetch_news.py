@@ -64,14 +64,14 @@ async def fetch_and_send_news(bot, chat_id):
             lang = get_language(full_text)
             if lang == "en":
                 summary = summarize_text(full_text)
-                translated = translate_text(summary, dest="fa")
+            translated = await async_translate(summary, target_lang="fa")
             elif lang == "fa":
                 summary = summarize_text(full_text)
                 translated = summary
             else:
                 translated = translate_text(full_text, dest="en")
                 summary = summarize_text(translated)
-                translated = translate_text(summary, dest="fa")
+               translated = await async_translate(summary, target_lang="fa")
 
             hash_id = hash_text(title + summary)
             if hash_id in sent_hashes:
