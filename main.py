@@ -1,12 +1,11 @@
-import asyncio
-from telegram.ext import ApplicationBuilder, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram import Update
-from telegram.ext import CommandHandler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fetch_news import fetch_news
 import os
+import asyncio
 
-GROUP_ID = -1002514471809  # گروه سردبیری
+GROUP_ID = -1002514471809
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -22,18 +21,22 @@ async def send_news(app):
         else:
             await app.bot.send_message(chat_id=GROUP_ID, text=msg)
 
-async def main():
+async def run():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
+    # دستور start
     app.add_handler(CommandHandler("start", start))
 
-    # Scheduler باید داخل main تعریف و اجرا بشه
+    # زمان‌بندی
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(send_news, 'interval', seconds=60, args=[app])
+    scheduler.add_job(send_news, "interval", minutes=1, args=[app])
     scheduler.start()
 
     print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
-    await app.run_polling()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await app.updater.wait()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.get_event_loop().run_until_complete(run())
