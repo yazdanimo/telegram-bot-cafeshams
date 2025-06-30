@@ -1,13 +1,12 @@
 import asyncio
+import os
 from telegram import Bot
-from telegram.ext import ApplicationBuilder, ContextTypes
-from telegram.ext import CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fetch_news import fetch_news
-import os
 
-TOKEN = os.getenv("BOT_TOKEN")  # حتماً در Railway تنظیم شده باشد
-GROUP_ID = -1002514471809       # آیدی عددی گروه سردبیری
+TOKEN = os.getenv("BOT_TOKEN")
+GROUP_ID = -1002514471809
 
 async def start(update, context):
     await update.message.reply_text("✅ ربات خبری کافه شمس فعال است.")
@@ -38,7 +37,17 @@ async def main():
     scheduler.start()
 
     print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
-    await app.run_polling()
+    await app.run_polling()  # بدون بسته شدن loop
 
+# نکته مهم: این قسمت فقط در محیط‌های خاص اجرا شود، نه Railway
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.get_event_loop().run_until_complete(main())
+    except RuntimeError as e:
+        if "already running" in str(e):
+            # در Railway این راه‌حل ایمن‌تر است
+            import nest_asyncio
+            nest_asyncio.apply()
+            asyncio.get_event_loop().create_task(main())
+        else:
+            raise e
