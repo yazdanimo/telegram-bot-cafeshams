@@ -1,49 +1,55 @@
-
+import re
 import aiohttp
-from langdetect import detect
+from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
+from langdetect import detect
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
-from bs4 import BeautifulSoup
-import hashlib
 
-sent_news_hashes = set()
+sent_news = set()
 
 def clean_text(text):
-    return ' '.join(text.split())
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 async def fetch_url(url):
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             return await response.text()
 
-async def async_translate(text, target="fa"):
-    try:
-        return GoogleTranslator(source="auto", target=target).translate(text)
-    except:
-        return text
-
 def detect_language(text):
     try:
         return detect(text)
     except:
-        return "unknown"
+        return "en"
 
-def summarize_text(text, sentence_count=3):
-    parser = PlaintextParser.from_string(text, Tokenizer("english"))
-    summarizer = LsaSummarizer()
-    summary = summarizer(parser.document, sentence_count)
-    return " ".join(str(sentence) for sentence in summary)
+async def async_translate(text, target="fa"):
+    try:
+        return GoogleTranslator(source='auto', target=target).translate(text)
+    except:
+        return text
+
+def summarize_text(text, sentences_count=3):
+    try:
+        parser = PlaintextParser.from_string(text, Tokenizer("english"))
+        summarizer = LsaSummarizer()
+        summary = summarizer(parser.document, sentences_count)
+        return " ".join(str(sentence) for sentence in summary)
+    except:
+        return text
 
 async def download_image(soup):
-    img_tag = soup.find("img")
-    if img_tag and img_tag.get("src", "").startswith("http"):
-        return img_tag["src"]
+    try:
+        img = soup.find("img")
+        if img and img.get("src") and img["src"].startswith("http"):
+            return img["src"]
+    except:
+        pass
     return None
 
 def is_duplicate(unique_id):
-    if unique_id in sent_news_hashes:
+    if unique_id in sent_news:
         return True
-    sent_news_hashes.add(unique_id)
+    sent_news.add(unique_id)
     return False
