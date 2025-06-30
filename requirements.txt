@@ -1,8 +1,7 @@
-python-telegram-bot==20.8
+python-telegram-bot==20.6
 feedparser
-requests
 beautifulsoup4
 sumy
+googletrans==4.0.0-rc1
 apscheduler
 nest_asyncio
-translate
