@@ -1,4 +1,5 @@
 import feedparser
+import asyncio
 import hashlib
 import json
 import os
