@@ -8,3 +8,4 @@ langdetect
 requests
 deep-translator
 langdetect
+sumy
