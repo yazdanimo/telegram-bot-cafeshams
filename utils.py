@@ -1,27 +1,29 @@
-import aiohttp
-import asyncio
+from deep_translator import GoogleTranslator
 from langdetect import detect
+import logging
 
-def get_language(text):
+async def async_translate(text, target_lang='en'):
+    try:
+        return GoogleTranslator(source='auto', target=target_lang).translate(text)
+    except Exception as e:
+        logging.error(f"❗️ خطا در ترجمه: {e}")
+        return text
+
+def detect_language(text):
     try:
         return detect(text)
     except:
         return "unknown"
 
-async def async_translate(text, target_lang="fa"):
-    url = "https://translate.googleapis.com/translate_a/single"
-    params = {
-        "client": "gtx",
-        "sl": "auto",
-        "tl": target_lang,
-        "dt": "t",
-        "q": text,
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as response:
-            if response.status == 200:
-                result = await response.json()
-                return "".join([item[0] for item in result[0]])
-            else:
-                return text
+def translate_text(text, dest="fa"):
+    lang = detect_language(text)
+    
+    if lang == "fa" or lang == "en":
+        return text  # No translation needed
+    
+    if dest == "en":
+        return GoogleTranslator(source=lang, target="en").translate(text)
+    else:
+        # Translate to English first, then to Persian
+        intermediate = GoogleTranslator(source=lang, target="en").translate(text)
+        return GoogleTranslator(source="en", target="fa").translate(intermediate)
