@@ -1,3 +1,13 @@
+import requests
+
+def download_image(url):
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.content
+    except Exception as e:
+        print(f"❗️ خطا در دانلود تصویر: {e}")
+    return None
 import re
 
 def clean_text(text):
