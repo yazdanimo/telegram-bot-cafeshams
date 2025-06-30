@@ -26,5 +26,5 @@ async def async_translate(text, target_lang="fa"):
             else:
                 return text
 
-def translate_text(text, dest="fa"):
-    return asyncio.run(async_translate(text, target_lang=dest))
+# ❌ این رو پاک می‌کنیم: return asyncio.run(...)
+# ✅ به جاش مستقیم تابع async_translate رو توی fetch_news صدا می‌زنیم
