@@ -14,7 +14,6 @@ async def fetch_and_send_news(sources, bot, group_id):
             if not feed.entries:
                 continue
 
-            # گرفتن اولین خبر
             entry = feed.entries[0]
             title = entry.get("title", "بدون عنوان")
             link = entry.get("link", "")
@@ -22,8 +21,7 @@ async def fetch_and_send_news(sources, bot, group_id):
             message = f"📰 <b>{name}</b>\n<b>{title}</b>\n{link}"
             await bot.send_message(chat_id=group_id, text=message, parse_mode="HTML")
 
-            # توقف ۱ ثانیه برای جلوگیری از flood
-            await asyncio.sleep(1)
+            await asyncio.sleep(1)  # کنترل سرعت ارسال برای جلوگیری از Flood
 
         except Exception as e:
             print(f"❗️خطا در منبع {source.get('name')}: {e}")
