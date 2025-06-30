@@ -2,7 +2,6 @@ import os
 import json
 import asyncio
 from telegram.ext import ApplicationBuilder
-from fetch_news import fetch_and_send_news
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 GROUP_ID = -1002514471809  # آیدی عددی گروه سردبیری
