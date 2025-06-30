@@ -1,41 +1,30 @@
+# main.py
 import asyncio
 import logging
-from telegram import Bot
-from telegram.ext import ApplicationBuilder, ContextTypes
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fetch_news import fetch_and_send_news
-import nest_asyncio
 import os
+from telegram.ext import ApplicationBuilder, CommandHandler
+from fetch_news import fetch_and_send_news
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# فعال‌سازی لاگ‌ها
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# دریافت توکن از متغیر محیطی
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise ValueError("توکن ربات در متغیر BOT_TOKEN یافت نشد.")
+TOKEN = os.getenv("BOT_TOKEN")
+GROUP_ID = int(os.getenv("GROUP_ID", "-1002514471809"))
 
-# تعریف تابع main
+async def start(update, context):
+    await update.message.reply_text("✅ ربات خبری کافه شمس فعال است!")
+
 async def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
 
-    # زمان‌بندی اجرای fetch
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(fetch_and_send_news, 'interval', minutes=1, args=[app.bot])
+    scheduler.add_job(fetch_and_send_news, 'interval', seconds=60, args=[app.bot, GROUP_ID])
     scheduler.start()
 
-    logger.info("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
-    await app.run_polling(close_loop=False)
+    print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
+    await app.run_polling()
 
-# اجرای برنامه
 if __name__ == '__main__':
-    nest_asyncio.apply()
-    try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        logger.error(f"❌ خطا: {e}")
+    asyncio.run(main())
