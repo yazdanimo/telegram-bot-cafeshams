@@ -38,23 +38,29 @@ def detect_language(text):
 def translate_to_english(text):
     try:
         return GoogleTranslator(source='auto', target='en').translate(text)
-    except:
+    except Exception as e:
+        print(f"❗️خطا در ترجمه: {e}")
         return text
 
 async def process_source(source, bot, group_id):
     try:
-        url = source.get("url")
         name = source.get("name", "منبع نامشخص")
+        url = source.get("url")
+        print(f"📡 بررسی منبع: {name} → {url}")
+
         if not url:
+            print(f"⚠️ آدرس منبع {name} خالی است.")
             return
 
         feed = feedparser.parse(url)
         if not feed.entries:
+            print(f"⚠️ منبع {name} ورودی ندارد.")
             return
 
         entry = feed.entries[0]
         entry_id = hash_entry(entry)
         if entry_id in sent_cache:
+            print(f"⏭ خبر تکراری در منبع {name}")
             return
 
         sent_cache.add(entry_id)
@@ -66,6 +72,7 @@ async def process_source(source, bot, group_id):
         lang = detect_language(clean_text)
 
         if lang not in ["fa", "en"]:
+            print(f"🌐 زبان خبر {lang} → در حال ترجمه...")
             clean_text = translate_to_english(clean_text)
             title = translate_to_english(title)
 
@@ -79,11 +86,15 @@ async def process_source(source, bot, group_id):
         else:
             await bot.send_message(chat_id=group_id, text=caption, parse_mode="HTML")
 
+        print(f"✅ خبر ارسال شد از {name}")
+
     except Exception as e:
         print(f"❗️خطا در منبع {source.get('name')}: {e}")
 
 async def fetch_and_send_news(sources, bot, group_id):
     tasks = []
+    print(f"🔍 شروع بررسی {len(sources)} منبع خبری...")
     for source in sources:
         tasks.append(process_source(source, bot, group_id))
     await asyncio.gather(*tasks)
+    print("✅ بررسی همه منابع تمام شد.")
