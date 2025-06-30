@@ -5,3 +5,4 @@ feedparser
 deep-translator
 apscheduler
 nest_asyncio
+aiohttp
