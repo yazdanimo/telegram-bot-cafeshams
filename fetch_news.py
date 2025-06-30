@@ -1,46 +1,43 @@
 import feedparser
-import asyncio
-import hashlib
 import json
 import os
-import requests
-from bs4 import BeautifulSoup
+import asyncio
+from datetime import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
+from googletrans import Translator
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
-from translate import Translator
+from telegram import Bot
+from bs4 import BeautifulSoup
 
-STATS_FILE = "stats.json"
-SOURCES_FILE = "sources.json"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+GROUP_ID = int(os.getenv("GROUP_ID"))
 
-def load_sent_titles():
-    if not os.path.exists(STATS_FILE):
-        print("⚠️ stats.json یافت نشد، ایجاد مجموعه خالی.")
-        return set()
-    with open(STATS_FILE, "r", encoding="utf-8") as f:
-        try:
-            data = json.load(f)
-            return set(data.get("sent_titles", []))
-        except:
-            print("⚠️ خطا در خواندن stats.json")
-            return set()
+bot = Bot(token=BOT_TOKEN)
+translator = Translator()
+stats_file = "stats.json"
 
-def save_sent_title(title_hash):
-    titles = load_sent_titles()
-    titles.add(title_hash)
-    with open(STATS_FILE, "w", encoding="utf-8") as f:
-        json.dump({"sent_titles": list(titles)}, f, ensure_ascii=False, indent=2)
+# بارگذاری منابع خبری
+with open("sources.json", "r", encoding="utf-8") as f:
+    sources = json.load(f)
 
-def make_hash(title):
-    return hashlib.md5(title.lower().strip().encode("utf-8")).hexdigest()
+# بارگذاری آمار بازدید
+try:
+    with open(stats_file, "r", encoding="utf-8") as f:
+        sent_stats = json.load(f)
+except FileNotFoundError:
+    print("⚠️ stats.json یافت نشد، ایجاد مجموعه خالی.")
+    sent_stats = {}
 
-def is_duplicate(title):
-    duplicate = make_hash(title) in load_sent_titles()
-    if duplicate:
-        print(f"⏩ رد شد (تکراری): {title}")
-    return duplicate
+def translate_text(text, dest="fa"):
+    try:
+        translated = translator.translate(text, dest=dest)
+        return translated.text
+    except:
+        return text
 
-def summarize(text, sentences_count=2):
+def summarize_text(text, sentences_count=3):
     try:
         parser = PlaintextParser.from_string(text, Tokenizer("english"))
         summarizer = LsaSummarizer()
@@ -49,77 +46,45 @@ def summarize(text, sentences_count=2):
     except:
         return text
 
-def translate(text, target_lang="fa"):
-    try:
-        translator = Translator(to_lang=target_lang)
-        return translator.translate(text)
-    except:
-        return text
+def clean_html(html):
+    soup = BeautifulSoup(html, "html.parser")
+    return soup.get_text()
 
-def translate_if_needed(text):
-    if text.strip() == "":
-        return ""
-    try:
-        if any('\u0600' <= ch <= '\u06FF' for ch in text):
-            return text  # already in Persian
-        return translate(text)
-    except:
-        return text
+def already_sent(title):
+    return title in sent_stats
 
-def extract_image(url):
-    try:
-        res = requests.get(url, timeout=5)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        og_img = soup.find("meta", property="og:image")
-        if og_img and og_img["content"]:
-            return og_img["content"]
-    except:
-        return None
+def mark_as_sent(title):
+    sent_stats[title] = datetime.utcnow().isoformat()
+    with open(stats_file, "w", encoding="utf-8") as f:
+        json.dump(sent_stats, f, ensure_ascii=False, indent=2)
 
-def load_sources():
-    with open(SOURCES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def fetch_and_send_news(app, group_id):
-    print("🚀 اجرای fetch_and_send_news...")
-    sent_titles = load_sent_titles()
-    sources = load_sources()
-
+async def send():
     for source in sources:
         print(f"📡 بررسی منبع: {source['name']} - {source['url']}")
         feed = feedparser.parse(source["url"])
-
-        for entry in feed.entries:
-            title = entry.title.strip()
+        for entry in feed.entries[:3]:
+            title = clean_html(entry.title).strip()
             link = entry.link
-            summary = entry.get("summary", "").strip()
-            print(f"🔍 بررسی خبر: {title}")
 
-            if not title or is_duplicate(title):
+            if already_sent(title):
                 continue
 
-            if len(summary) > 300:
-                summary = summarize(summary)
+            description = clean_html(entry.get("summary", ""))
+            content = f"{source['name']} | {title}\n\n{description[:500]}\n\n{link}"
 
-            title_translated = translate_if_needed(title)
-            summary_translated = translate_if_needed(summary)
-            image_url = extract_image(link)
+            # اگر انگلیسی، ترجمه کن
+            if not any(c in description for c in "اآبپتثجچ"):
+                summary = summarize_text(description)
+                content += "\n\n📝 خلاصه: " + summarize_text(description)
+                content += "\n\n🌐 ترجمه:\n" + translate_text(summary)
 
-            title_hash = make_hash(title)
-            save_sent_title(title_hash)
+            await bot.send_message(chat_id=GROUP_ID, text=content)
+            mark_as_sent(title)
 
-            text = f"\u2728 <b>{source['name']}</b>\n\uD83D\uDCC4 <b>{title_translated}</b>"
-            if summary_translated:
-                text += f"\n\n{summary_translated}"
-            text += f"\n\n\uD83D\uDD17 <a href=\"{link}\">مشاهده خبر</a>"
+# زمان‌بندی اجرا هر 1 دقیقه
+def fetch_and_send_news():
+    asyncio.create_task(send())
 
-            async def send():
-                try:
-                    await app.bot.send_message(chat_id=group_id, text=text, parse_mode="HTML", disable_web_page_preview=False)
-                    print(f"✅ ارسال شد: {title_translated}")
-                except Exception as e:
-                    print(f"❌ خطا در ارسال: {e}")
-
-            asyncio.create_task(send())
-
-    print("✅ پایان fetch_and_send_news")
+scheduler = BackgroundScheduler()
+scheduler.add_job(fetch_and_send_news, "interval", minutes=1)
+scheduler.start()
