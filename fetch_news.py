@@ -10,6 +10,9 @@ from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
 from telegram import Bot
 from bs4 import BeautifulSoup
+import nest_asyncio
+
+nest_asyncio.apply()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID"))
@@ -22,7 +25,7 @@ stats_file = "stats.json"
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-# بارگذاری آمار بازدید
+# بارگذاری آمار ارسال‌شده
 try:
     with open(stats_file, "r", encoding="utf-8") as f:
         sent_stats = json.load(f)
@@ -42,7 +45,7 @@ def summarize_text(text, sentences_count=3):
         parser = PlaintextParser.from_string(text, Tokenizer("english"))
         summarizer = LsaSummarizer()
         summary = summarizer(parser.document, sentences_count)
-        return " ".join([str(sentence) for sentence in summary])
+        return " ".join(str(sentence) for sentence in summary)
     except:
         return text
 
@@ -70,21 +73,27 @@ async def send():
                 continue
 
             description = clean_html(entry.get("summary", ""))
-            content = f"{source['name']} | {title}\n\n{description[:500]}\n\n{link}"
+            content = f"{source['name']} | {title}\n\n"
 
-            # اگر انگلیسی، ترجمه کن
-            if not any(c in description for c in "اآبپتثجچ"):
-                summary = summarize_text(description)
-                content += "\n\n📝 خلاصه: " + summarize_text(description)
-                content += "\n\n🌐 ترجمه:\n" + translate_text(summary)
+            if description:
+                if not any(c in description for c in "اآبپتثجچ"):
+                    summary = summarize_text(description)
+                    content += f"📝 خلاصه: {summary}\n\n🌐 ترجمه:\n{translate_text(summary)}\n\n"
+                else:
+                    content += f"{description}\n\n"
+
+            content += link
 
             await bot.send_message(chat_id=GROUP_ID, text=content)
             mark_as_sent(title)
 
-# زمان‌بندی اجرا هر 1 دقیقه
+# اجرای دوره‌ای هر 1 دقیقه
 def fetch_and_send_news():
     asyncio.create_task(send())
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(fetch_and_send_news, "interval", minutes=1)
 scheduler.start()
+
+print("✅ fetch_news.py فعال شد و هر 1 دقیقه بررسی می‌کند...")
+asyncio.get_event_loop().run_forever()
