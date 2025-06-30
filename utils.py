@@ -26,3 +26,12 @@ async def async_translate(text, target_lang="en"):
 async def fetch_url(session, url):
     async with session.get(url, timeout=10) as response:
         return await response.text()
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
+
+def summarize_text(text, sentences_count=3):
+    parser = PlaintextParser.from_string(text, Tokenizer("english"))
+    summarizer = LsaSummarizer()
+    summary = summarizer(parser.document, sentences_count)
+    return " ".join([str(sentence) for sentence in summary])
