@@ -1,33 +1,41 @@
 import asyncio
-import nest_asyncio
 import logging
-from telegram.ext import ApplicationBuilder
+from telegram import Bot
+from telegram.ext import ApplicationBuilder, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fetch_news import fetch_and_send_news
+import nest_asyncio
 import os
 
-# تنظیمات لاگ
+# فعال‌سازی لاگ‌ها
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 
-# استفاده از nest_asyncio برای جلوگیری از خطای event loop
-nest_asyncio.apply()
+logger = logging.getLogger(__name__)
 
-# متغیرها
-BOT_TOKEN = os.getenv("BOT_TOKEN") or "توکن_بات_تو_اینجا"
-CHAT_ID = os.getenv("CHAT_ID") or -1002514471809  # آی‌دی گروه سردبیری
+# دریافت توکن از متغیر محیطی
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("توکن ربات در متغیر BOT_TOKEN یافت نشد.")
 
+# تعریف تابع main
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # برنامه‌ریز زمان‌بندی
+    # زمان‌بندی اجرای fetch
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(fetch_and_send_news, "interval", seconds=60, args=[app.bot, CHAT_ID])
+    scheduler.add_job(fetch_and_send_news, 'interval', minutes=1, args=[app.bot])
     scheduler.start()
 
-    print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
+    logger.info("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
     await app.run_polling(close_loop=False)
 
-if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+# اجرای برنامه
+if __name__ == '__main__':
+    nest_asyncio.apply()
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        logger.error(f"❌ خطا: {e}")
