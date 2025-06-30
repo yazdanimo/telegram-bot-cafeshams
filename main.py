@@ -1,18 +1,19 @@
 import os
 import asyncio
+import nest_asyncio
 from telegram.ext import ApplicationBuilder, CommandHandler
 from fetch_news import fetch_and_send_news
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# اطلاعات اولیه
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_ID = -1002514471809  # آیدی عددی گروه سردبیری
+# اعمال پچ روی event loop
+nest_asyncio.apply()
 
-# دستور /start
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+GROUP_ID = -1002514471809  # آیدی گروه سردبیری
+
 async def start(update, context):
     await update.message.reply_text("✅ ربات خبری کافه شمس فعال است.")
 
-# برنامه زمان‌بندی‌شده هر ۱ دقیقه
 async def scheduled_job():
     from telegram import Bot
     bot = Bot(BOT_TOKEN)
@@ -20,11 +21,8 @@ async def scheduled_job():
 
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    # هندلر دستور start
     app.add_handler(CommandHandler("start", start))
 
-    # زمان‌بندی اخبار
     scheduler = AsyncIOScheduler()
     scheduler.add_job(scheduled_job, "interval", minutes=1)
     scheduler.start()
