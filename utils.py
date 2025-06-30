@@ -45,3 +45,15 @@ def summarize_text(text, sentences_count=3):
     summarizer = LsaSummarizer()
     summary = summarizer(parser.document, sentences_count)
     return " ".join([str(sentence) for sentence in summary])
+import hashlib
+
+# بررسی تکراری بودن خبر با هش کردن تیتر و مقایسه با حافظه موقت
+seen_hashes = set()
+
+def is_duplicate(text: str) -> bool:
+    text_hash = hashlib.md5(text.strip().lower().encode('utf-8')).hexdigest()
+    if text_hash in seen_hashes:
+        return True
+    seen_hashes.add(text_hash)
+    return False
+
