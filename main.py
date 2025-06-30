@@ -29,5 +29,11 @@ async def main():
     print("🚀 ربات خبری کافه شمس در حال اجراست...")
     await application.run_polling()
 
+# ✅ به جای asyncio.run(...) از این استفاده کن:
 if __name__ == "__main__":
-    asyncio.run(main())
+    import nest_asyncio
+    nest_asyncio.apply()
+
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())
+    loop.run_forever()
