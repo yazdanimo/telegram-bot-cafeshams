@@ -2,21 +2,14 @@ import feedparser
 import asyncio
 import hashlib
 from bs4 import BeautifulSoup
-from sumy.parsers.plaintext import PlaintextParser
-from sumy.nlp.tokenizers import Tokenizer
-from sumy.summarizers.lsa import LsaSummarizer
 import requests
 
-sent_cache = set()  # کش برای جلوگیری از ارسال خبرهای تکراری
+sent_cache = set()  # جلوگیری از ارسال تکراری
 
-def summarize_text(text, max_sentences=2):
-    parser = PlaintextParser.from_string(text, Tokenizer("english"))
-    summarizer = LsaSummarizer()
-    summary = summarizer(parser.document, max_sentences)
-    return " ".join(str(sentence) for sentence in summary)
+def summarize_text(text, max_chars=400):
+    return text[:max_chars] + "..." if len(text) > max_chars else text
 
 def get_image_from_entry(entry):
-    # جستجوی عکس در entry
     if "media_content" in entry:
         return entry.media_content[0].get("url")
     elif "links" in entry:
@@ -39,6 +32,8 @@ async def fetch_and_send_news(sources, bot, group_id):
         try:
             url = source.get("url")
             name = source.get("name", "منبع نامشخص")
+            if not url:
+                continue
 
             feed = feedparser.parse(url)
             if not feed.entries:
@@ -47,19 +42,16 @@ async def fetch_and_send_news(sources, bot, group_id):
             entry = feed.entries[0]
             entry_id = hash_entry(entry)
             if entry_id in sent_cache:
-                continue  # تکراری
+                continue  # جلوگیری از ارسال تکراری
 
             sent_cache.add(entry_id)
 
             title = entry.get("title", "بدون عنوان")
             link = entry.get("link", "")
             summary = entry.get("summary", "")
-
-            # خلاصه‌سازی
             clean_text = BeautifulSoup(summary, "html.parser").get_text()
             short_text = summarize_text(clean_text)
 
-            # پیدا کردن عکس
             image_url = get_image_from_entry(entry)
 
             caption = f"<b>{name}</b>\n<b>{title}</b>\n\n{short_text}\n\n{link}"
@@ -69,7 +61,7 @@ async def fetch_and_send_news(sources, bot, group_id):
             else:
                 await bot.send_message(chat_id=group_id, text=caption, parse_mode="HTML")
 
-            await asyncio.sleep(1)  # جلوگیری از flood
+            await asyncio.sleep(1)
 
         except Exception as e:
             print(f"❗️خطا در منبع {source.get('name')}: {e}")
