@@ -1,37 +1,29 @@
-import os
 import asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import os
+from telegram.ext import ApplicationBuilder
 from fetch_news import fetch_and_send_news
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import nest_asyncio
 
-# تنظیم توکن و آیدی گروه از محیط یا به‌صورت پیش‌فرض
-TOKEN = os.getenv("BOT_TOKEN") or "7957685811:AAGC3ruFWuHouVsbsPt6TiPSv15CTduoyxA"
-CHAT_ID = int(os.getenv("CHAT_ID") or -1002514471809)
+nest_asyncio.apply()  # رفع خطای event loop
 
-# دستور start
-async def start(update, context):
-    await update.message.reply_text("✅ ربات خبری کافه شمس فعال است!")
+TOKEN = os.getenv("BOT_TOKEN")
 
-# تابعی که هر دقیقه اجرا می‌شود
-async def fetch_and_send():
-    await fetch_and_send_news(CHAT_ID)
-
-# تابع اصلی
 async def main():
-    # ساخت اپلیکیشن تلگرام
     app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
 
-    # راه‌اندازی زمان‌بندی
+    # اجرای اولیه
+    await fetch_and_send_news(app)
+
+    # زمان‌بندی هر دقیقه
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(fetch_and_send, "interval", seconds=60)
+    scheduler.add_job(fetch_and_send_news, "interval", seconds=60, args=[app])
     scheduler.start()
 
     print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
 
-    # اجرای ربات بدون بستن event loop
-    await app.run_polling(close_loop=False)
+    await app.run_polling()  # بدون بستن loop
 
-# اجرای main
-if __name__ == "__main__":
-    asyncio.run(main())
+# اجرا بدون asyncio.run
+loop = asyncio.get_event_loop()
+loop.run_until_complete(main())
