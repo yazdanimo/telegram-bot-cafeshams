@@ -1,92 +1,82 @@
 import feedparser
 import hashlib
-import json
-import os
-import requests
+import html
+import re
+import aiohttp
 from bs4 import BeautifulSoup
-from utils import async_translate, get_language
+from utils import async_translate, detect_language
 
-SENT_NEWS_HASHES_FILE = "sent_news_hashes.json"
+async def fetch_summary(url):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=10) as response:
+                html_content = await response.text()
+                soup = BeautifulSoup(html_content, "html.parser")
+                paragraphs = soup.find_all("p")
+                text = " ".join(p.get_text() for p in paragraphs)
+                return text[:500]
+    except:
+        return ""
 
-def load_sent_news_hashes():
-    if os.path.exists(SENT_NEWS_HASHES_FILE):
-        with open(SENT_NEWS_HASHES_FILE, "r") as f:
-            return set(json.load(f))
-    return set()
+def clean_text(text):
+    return html.unescape(re.sub(r"\s+", " ", text)).strip()
 
-def save_sent_news_hashes(hashes):
-    with open(SENT_NEWS_HASHES_FILE, "w") as f:
-        json.dump(list(hashes), f)
-
-def hash_text(text):
-    return hashlib.md5(text.encode('utf-8')).hexdigest()
-
-def summarize_text(text, max_chars=400):
-    text = text.strip().replace('\n', ' ')
-    if len(text) <= max_chars:
-        return text
-    return text[:max_chars].rsplit('.', 1)[0] + '.'
-
-def extract_image(entry):
-    if 'media_content' in entry:
-        return entry['media_content'][0].get('url', '')
-    elif 'media_thumbnail' in entry:
-        return entry['media_thumbnail'][0].get('url', '')
-    elif 'summary' in entry:
-        soup = BeautifulSoup(entry['summary'], 'html.parser')
-        img = soup.find('img')
-        if img and img.get('src'):
-            return img.get('src')
-    return ''
-
-def extract_text(entry):
-    if 'summary' in entry:
-        return BeautifulSoup(entry['summary'], 'html.parser').get_text()
-    elif 'content' in entry and isinstance(entry['content'], list):
-        return BeautifulSoup(entry['content'][0].get('value', ''), 'html.parser').get_text()
-    return ''
+def hash_news(title):
+    return hashlib.md5(title.encode("utf-8")).hexdigest()
 
 async def fetch_and_send_news(bot, chat_id):
-    sent_hashes = load_sent_news_hashes()
+    import json
+    from datetime import datetime
+    from telegram import InputMediaPhoto
 
-    with open("sources.json", "r", encoding="utf-8") as f:
-        sources = json.load(f)
+    try:
+        with open("sources.json", "r", encoding="utf-8") as f:
+            sources = json.load(f)
+    except Exception as e:
+        print(f"Error loading sources: {e}")
+        return
+
+    sent_hashes = set()
 
     for source in sources:
-        feed = feedparser.parse(source["url"])
-        for entry in feed.entries[:5]:
-            title = entry.get("title", "❗️ تیتر یافت نشد")
-            link = entry.get("link", "")
-            full_text = extract_text(entry)
-            if not full_text:
-                continue
+        url = source["url"]
+        name = source.get("name", "منبع ناشناس")
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:3]:
+                title = clean_text(entry.title)
+                link = entry.link
+                uid = hash_news(title)
 
-            lang = get_language(full_text)
-            if lang == "en":
-                summary = summarize_text(full_text)
-                translated = await async_translate(summary, target_lang="fa")
-            elif lang == "fa":
-                summary = summarize_text(full_text)
-                translated = summary
-            else:
-                translated = await async_translate(full_text, target_lang="en")
-                summary = summarize_text(translated)
-                translated = await async_translate(summary, target_lang="fa")
+                if uid in sent_hashes:
+                    continue
 
-            hash_id = hash_text(title + summary)
-            if hash_id in sent_hashes:
-                continue
+                sent_hashes.add(uid)
 
-            sent_hashes.add(hash_id)
-            save_sent_news_hashes(sent_hashes)
+                summary = await fetch_summary(link)
+                lang = detect_language(summary or title)
 
-            image_url = extract_image(entry)
-            caption = f"<b>{source['name']} | {title}</b>\n\n{translated}\n\n<a href='{link}'>مطالعه بیشتر</a>"
+                if lang not in ["en", "fa"]:
+                    summary = await async_translate(summary, target_lang="en")
+                    lang = "en"
 
-            try:
+                if lang == "en":
+                    summary = await async_translate(summary, target_lang="fa")
+
+                image_url = ""
+                if "media_content" in entry:
+                    image_url = entry.media_content[0].get("url", "")
+                elif "image" in entry:
+                    image_url = entry.image.get("href", "")
+
+                caption = f"<b>{name} | {title}</b>\n\n{summary}\n\n<a href='{link}'>مشاهده خبر</a>"
+
                 if image_url:
-                    await bot.send_photo(chat_id=chat_id, photo=image_url, caption=caption, parse_mode="HTML")
+                    try:
+                        await bot.send_photo(chat_id=chat_id, photo=image_url, caption=caption, parse_mode="HTML")
+                    except:
+                        await bot.send_message(chat_id=chat_id, text=caption, parse_mode="HTML")
                 else:
                     await bot.send_message(chat_id=chat_id, text=caption, parse_mode="HTML")
-            except Exception as e:
-                print(f"❗️ خطا در ارسال خبر: {e}")
+        except Exception as e:
+            print(f"❗️ خطا در پردازش {url}: {e}")
