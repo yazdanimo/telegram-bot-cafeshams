@@ -16,7 +16,7 @@ async def start(update, context):
 async def scheduled_job():
     await asyncio.to_thread(fetch_and_send_news, bot, GROUP_ID)
 
-async def main():
+async def setup():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
 
@@ -25,7 +25,12 @@ async def main():
     scheduler.start()
 
     print("🚀 ربات در حال اجراست...")
-    await app.run_polling()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    # بدون مسدودسازی event loop
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# اجرای نهایی
+loop = asyncio.get_event_loop()
+loop.run_until_complete(setup())
+loop.run_forever()
