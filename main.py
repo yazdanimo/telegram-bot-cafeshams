@@ -1,3 +1,4 @@
+from fetch_news import fetch_and_send_news
 import os
 import json
 import asyncio
