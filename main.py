@@ -1,36 +1,39 @@
-import logging
-import os
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import asyncio
+from telegram.ext import ApplicationBuilder, ContextTypes
 from telegram import Update
+from telegram.ext import CommandHandler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fetch_news import fetch_news
+import os
 
-# تنظیمات اولیه
-logging.basicConfig(level=logging.INFO)
-BOT_TOKEN = os.getenv("BOT_TOKEN") or "7957685811:AAGC3ruFWuHouVsbsPt6TiPSv15CTduoyxA"
 GROUP_ID = -1002514471809  # گروه سردبیری
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# دستور استارت
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ ربات خبری کافه شمس فعال است!")
+    await update.message.reply_text("✅ ربات خبری کافه شمس آماده است!")
 
-# ارسال اخبار
-async def send_news():
-    logging.info("📡 در حال بررسی اخبار...")
+async def send_news(app):
+    print("🚀 بررسی اخبار جدید...")
     news_items = fetch_news()
     for item in news_items:
-        message = f"📰 {item['title']}\n\n🌐 {item['source']}\n🔗 {item['link']}"
-        await app.bot.send_message(chat_id=GROUP_ID, text=message)
+        msg = f"🗞 {item['source']} | {item['title']}\n\n{item['summary']}\n🔗 {item['link']}"
+        if item['image']:
+            await app.bot.send_photo(chat_id=GROUP_ID, photo=item['image'], caption=msg)
+        else:
+            await app.bot.send_message(chat_id=GROUP_ID, text=msg)
 
-# ساخت اپلیکیشن
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
+async def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# زمان‌بندی ارسال خبر هر یک دقیقه
-scheduler = AsyncIOScheduler()
-scheduler.add_job(send_news, "interval", minutes=1)
-scheduler.start()
+    app.add_handler(CommandHandler("start", start))
 
-# اجرای ربات
+    # Scheduler باید داخل main تعریف و اجرا بشه
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(send_news, 'interval', seconds=60, args=[app])
+    scheduler.start()
+
+    print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
+    await app.run_polling()
+
 if __name__ == "__main__":
-    app.run_polling()
+    asyncio.run(main())
