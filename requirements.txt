@@ -7,3 +7,4 @@ aiohttp
 langdetect
 requests
 deep-translator
+langdetect
