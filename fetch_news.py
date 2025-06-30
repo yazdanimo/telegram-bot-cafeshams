@@ -1,19 +1,12 @@
-
 import feedparser
 import html
 import hashlib
-import re
-import aiohttp
 import asyncio
-from datetime import datetime
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 import warnings
 from utils import clean_text, fetch_url, async_translate, detect_language, summarize_text, download_image, is_duplicate
-from telegram import InputMediaPhoto
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
-
-sent_news = set()
 
 async def fetch_and_send_news(sources, bot, group_id):
     for source in sources:
@@ -32,7 +25,6 @@ async def fetch_and_send_news(sources, bot, group_id):
                 title = html.unescape(entry.get("title", "")).strip()
                 link = entry.get("link", "").strip()
                 summary = html.unescape(entry.get("summary", "")).strip()
-                published = entry.get("published", "")
                 unique_id = hashlib.sha256((title + link).encode()).hexdigest()
 
                 if is_duplicate(unique_id):
@@ -63,8 +55,7 @@ async def fetch_and_send_news(sources, bot, group_id):
                     else:
                         await bot.send_message(chat_id=group_id, text=caption, parse_mode='Markdown')
 
-                    sent_news.add(unique_id)
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(2)  # جلوگیری از Flood control
                 except Exception as e:
                     print(f"❗️ خطا در ارسال خبر: {e}")
 
