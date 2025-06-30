@@ -16,7 +16,7 @@ async def start(update, context):
 async def scheduled_job():
     await asyncio.to_thread(fetch_and_send_news, bot, GROUP_ID)
 
-def main():
+async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
 
@@ -25,7 +25,7 @@ def main():
     scheduler.start()
 
     print("🚀 ربات در حال اجراست...")
-    app.run_polling()
+    await app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
