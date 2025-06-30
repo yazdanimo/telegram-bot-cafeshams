@@ -1,8 +1,8 @@
-python-telegram-bot==20.6
+python-telegram-bot==20.3
+feedparser
 beautifulsoup4
 sumy
-feedparser
-deep-translator
 apscheduler
 nest_asyncio
 aiohttp
+langdetect
