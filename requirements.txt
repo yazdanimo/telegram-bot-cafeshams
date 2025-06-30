@@ -1,0 +1,7 @@
+python-telegram-bot==20.3
+feedparser
+beautifulsoup4
+apscheduler
+nest_asyncio
+aiohttp
+langdetect
