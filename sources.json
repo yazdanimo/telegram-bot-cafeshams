@@ -1,218 +1,62 @@
 [
-  {
-    "name": "Reuters",
-    "url": "http://feeds.reuters.com/reuters/worldNews"
-  },
-  {
-    "name": "Associated Press",
-    "url": "https://apnews.com/rss"
-  },
-  {
-    "name": "Al Jazeera",
-    "url": "https://www.aljazeera.com/xml/rss/all.xml"
-  },
-  {
-    "name": "AFP",
-    "url": "https://www.afp.com/en/rss"
-  },
-  {
-    "name": "Bloomberg",
-    "url": "https://www.bloomberg.com/feed/podcast/etf-report.xml"
-  },
-  {
-    "name": "Channel NewsAsia",
-    "url": "https://www.channelnewsasia.com/rssfeeds/8395986"
-  },
-  {
-    "name": "CNN",
-    "url": "http://rss.cnn.com/rss/edition_world.rss"
-  },
-  {
-    "name": "Deutsche Welle",
-    "url": "https://rss.dw.com/rdf/rss-en-world"
-  },
-  {
-    "name": "IRNA",
-    "url": "https://www.irna.ir/rss"
-  },
-  {
-    "name": "Fars News",
-    "url": "https://www.farsnews.ir/rss"
-  },
-  {
-    "name": "Tasnim News",
-    "url": "https://www.tasnimnews.com/rss"
-  },
-  {
-    "name": "Mehr News",
-    "url": "https://www.mehrnews.com/rss"
-  },
-  {
-    "name": "TurkmenLink",
-    "url": "https://turkmen.news/rss/"
-  },
-  {
-    "name": "Russia Today",
-    "url": "https://www.rt.com/rss/news/"
-  },
-  {
-    "name": "China Daily",
-    "url": "http://www.chinadaily.com.cn/rss/china_rss.xml"
-  },
-  {
-    "name": "United Press",
-    "url": "https://www.upi.com/rss/"
-  },
-  {
-    "name": "Jiji Press",
-    "url": "https://www.jiji.com/rss"
-  },
-  {
-    "name": "Anadolu Agency",
-    "url": "https://www.aa.com.tr/en/rss/default?cat=0"
-  },
-  {
-    "name": "Dong-A Ilbo",
-    "url": "http://rss.donga.com/total.xml"
-  },
-  {
-    "name": "BBC News",
-    "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
-  },
-  {
-    "name": "New York Times",
-    "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
-  },
-  {
-    "name": "Washington Post",
-    "url": "https://feeds.washingtonpost.com/rss/world"
-  },
-  {
-    "name": "The Guardian",
-    "url": "https://www.theguardian.com/world/rss"
-  },
-  {
-    "name": "Los Angeles Times",
-    "url": "https://www.latimes.com/world/rss2.0.xml"
-  },
-  {
-    "name": "Le Monde",
-    "url": "https://www.lemonde.fr/international/rss_full.xml"
-  },
-  {
-    "name": "Die Tageszeitung",
-    "url": "https://taz.de/rss.xml"
-  },
-  {
-    "name": "O Globo",
-    "url": "https://oglobo.globo.com/rss.xml"
-  },
-  {
-    "name": "Al-Araby Al-Jadeed",
-    "url": "https://www.alaraby.co.uk/rss"
-  },
-  {
-    "name": "Al-Akhbar",
-    "url": "https://al-akhbar.com/feed"
-  },
-  {
-    "name": "Times of India",
-    "url": "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms"
-  },
-  {
-    "name": "China Press",
-    "url": "https://www.chinapress.com.my/rss"
-  },
-  {
-    "name": "Straits Times",
-    "url": "https://www.straitstimes.com/news/world/rss.xml"
-  },
-  {
-    "name": "Le Monde Diplomatique",
-    "url": "https://mondediplo.com/rss"
-  },
-  {
-    "name": "Asia Times",
-    "url": "https://asiatimes.com/feed/"
-  },
-  {
-    "name": "Axios",
-    "url": "https://www.axios.com/newsletters/rss"
-  },
-  {
-    "name": "Folha de S.Paulo",
-    "url": "https://www1.folha.uol.com.br/rss/"
-  },
-  {
-    "name": "Süddeutsche Zeitung",
-    "url": "https://rss.sueddeutsche.de/rss/Topthemen"
-  },
-  {
-    "name": "China News",
-    "url": "http://www.chinanews.com/rss/rss.xml"
-  },
-  {
-    "name": "El Pais",
-    "url": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/internacional/portada"
-  },
-  {
-    "name": "The Independent",
-    "url": "https://www.independent.co.uk/news/world/rss"
-  },
-  {
-    "name": "Le Matin",
-    "url": "https://www.lematin.ch/rss"
-  },
-  {
-    "name": "Newsweek",
-    "url": "https://www.newsweek.com/feed"
-  },
-  {
-    "name": "Libération",
-    "url": "https://www.liberation.fr/rss"
-  },
-  {
-    "name": "Corriere della Sera",
-    "url": "https://xml2.corriereobjects.it/rss/homepage.xml"
-  },
-  {
-    "name": "Hindustan Times",
-    "url": "https://www.hindustantimes.com/rss/world/rssfeed.xml"
-  },
-  {
-    "name": "ABTV",
-    "url": "https://www.abtv.ir/rss"
-  },
-  {
-    "name": "Daily Mail",
-    "url": "https://www.dailymail.co.uk/articles.rss"
-  },
-  {
-    "name": "Wall Street Journal",
-    "url": "https://feeds.a.dj.com/rss/RSSWorldNews.xml"
-  },
-  {
-    "name": "Al-Ahram",
-    "url": "https://www.ahram.org.eg/rss"
-  },
-  {
-    "name": "Huffington Post",
-    "url": "https://www.huffpost.com/section/world-news/feed"
-  },
-  {
-    "name": "Kyodo News",
-    "url": "https://english.kyodonews.net/rss/news.xml"
-  },
-  {
-    "name": "ITV News",
-    "url": "https://www.itv.com/news/world/rss"
-  },
-  {
-    "name": "Newsweek Today",
-    "url": "https://www.newsweek.com/today/feed"
-  },
-  {
-    "name": "Izvestia",
-    "url": "https://iz.ru/xml/rss/all.xml"
-  }
+  { "name": "Reuters", "url": "http://feeds.reuters.com/reuters/worldNews" },
+  { "name": "Associated Press", "url": "https://apnews.com/rss" },
+  { "name": "Al Jazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml" },
+  { "name": "AFP", "url": "https://www.afp.com/en/rss" },
+  { "name": "Bloomberg", "url": "https://www.bloomberg.com/feed/podcast/etf-report.xml" },
+  { "name": "Channel NewsAsia", "url": "https://www.channelnewsasia.com/rssfeeds/8395986" },
+  { "name": "CNN", "url": "http://rss.cnn.com/rss/edition_world.rss" },
+  { "name": "Deutsche Welle", "url": "https://rss.dw.com/rdf/rss-en-world" },
+  { "name": "IRNA", "url": "https://www.irna.ir/rss" },
+  { "name": "Fars News", "url": "https://www.farsnews.ir/rss" },
+  { "name": "Tasnim News", "url": "https://www.tasnimnews.com/rss" },
+  { "name": "Mehr News", "url": "https://www.mehrnews.com/rss" },
+  { "name": "TurkmenLink", "url": "https://turkmen.news/rss/" },
+  { "name": "Russia Today", "url": "https://www.rt.com/rss/news/" },
+  { "name": "China Daily", "url": "http://www.chinadaily.com.cn/rss/china_rss.xml" },
+  { "name": "United Press", "url": "https://www.upi.com/rss/" },
+  { "name": "Jiji Press", "url": "https://www.jiji.com/rss" },
+  { "name": "Anadolu Agency", "url": "https://www.aa.com.tr/en/rss/default?cat=0" },
+  { "name": "Dong-A Ilbo", "url": "http://rss.donga.com/total.xml" },
+  { "name": "BBC News", "url": "https://feeds.bbci.co.uk/news/world/rss.xml" },
+  { "name": "New York Times", "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" },
+  { "name": "Washington Post", "url": "https://feeds.washingtonpost.com/rss/world" },
+  { "name": "The Guardian", "url": "https://www.theguardian.com/world/rss" },
+  { "name": "Los Angeles Times", "url": "https://www.latimes.com/world/rss2.0.xml" },
+  { "name": "Le Monde", "url": "https://www.lemonde.fr/international/rss_full.xml" },
+  { "name": "Die Tageszeitung", "url": "https://taz.de/rss.xml" },
+  { "name": "O Globo", "url": "https://oglobo.globo.com/rss.xml" },
+  { "name": "Al-Araby Al-Jadeed", "url": "https://www.alaraby.co.uk/rss" },
+  { "name": "Al-Akhbar", "url": "https://al-akhbar.com/feed" },
+  { "name": "Times of India", "url": "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms" },
+  { "name": "China Press", "url": "https://www.chinapress.com.my/rss" },
+  { "name": "Straits Times", "url": "https://www.straitstimes.com/news/world/rss.xml" },
+  { "name": "Le Monde Diplomatique", "url": "https://mondediplo.com/rss" },
+  { "name": "Asia Times", "url": "https://asiatimes.com/feed/" },
+  { "name": "Axios", "url": "https://www.axios.com/newsletters/rss" },
+  { "name": "Folha de S.Paulo", "url": "https://www1.folha.uol.com.br/rss/" },
+  { "name": "Süddeutsche Zeitung", "url": "https://rss.sueddeutsche.de/rss/Topthemen" },
+  { "name": "China News", "url": "http://www.chinanews.com/rss/rss.xml" },
+  { "name": "El Pais", "url": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/internacional/portada" },
+  { "name": "The Independent", "url": "https://www.independent.co.uk/news/world/rss" },
+  { "name": "Le Matin", "url": "https://www.lematin.ch/rss" },
+  { "name": "Newsweek", "url": "https://www.newsweek.com/feed" },
+  { "name": "Libération", "url": "https://www.liberation.fr/rss" },
+  { "name": "Corriere della Sera", "url": "https://xml2.corriereobjects.it/rss/homepage.xml" },
+  { "name": "Hindustan Times", "url": "https://www.hindustantimes.com/rss/world/rssfeed.xml" },
+  { "name": "ABTV", "url": "https://www.abtv.ir/rss" },
+  { "name": "Daily Mail", "url": "https://www.dailymail.co.uk/articles.rss" },
+  { "name": "Wall Street Journal", "url": "https://feeds.a.dj.com/rss/RSSWorldNews.xml" },
+  { "name": "Al-Ahram", "url": "https://www.ahram.org.eg/rss" },
+  { "name": "Huffington Post", "url": "https://www.huffpost.com/section/world-news/feed" },
+  { "name": "Kyodo News", "url": "https://english.kyodonews.net/rss/news.xml" },
+  { "name": "ITV News", "url": "https://www.itv.com/news/world/rss" },
+  { "name": "Newsweek Today", "url": "https://www.newsweek.com/today/feed" },
+  { "name": "Izvestia", "url": "https://iz.ru/xml/rss/all.xml" },
+
+  { "name": "Twitter | IranIntl", "url": "https://rsshub.app/twitter/user/IranIntl" },
+  { "name": "Twitter | MiddleEastEye", "url": "https://rsshub.app/twitter/user/MiddleEastEye" },
+
+  { "name": "Telegram | IranIntl", "url": "https://rsshub.app/telegram/channel/IranIntl" },
+  { "name": "Telegram | FarsNews", "url": "https://rsshub.app/telegram/channel/farsna" }
 ]
