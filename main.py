@@ -1,42 +1,44 @@
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from telegram import Update
+import asyncio
+from telegram import Bot
+from telegram.ext import ApplicationBuilder, ContextTypes
+from telegram.ext import CommandHandler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fetch_news import fetch_news
 import os
-import asyncio
 
-GROUP_ID = -1002514471809
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")  # حتماً در Railway تنظیم شده باشد
+GROUP_ID = -1002514471809       # آیدی عددی گروه سردبیری
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ ربات خبری کافه شمس آماده است!")
+async def start(update, context):
+    await update.message.reply_text("✅ ربات خبری کافه شمس فعال است.")
 
-async def send_news(app):
-    print("🚀 بررسی اخبار جدید...")
+async def send_news():
     news_items = fetch_news()
-    for item in news_items:
-        msg = f"🗞 {item['source']} | {item['title']}\n\n{item['summary']}\n🔗 {item['link']}"
-        if item['image']:
-            await app.bot.send_photo(chat_id=GROUP_ID, photo=item['image'], caption=msg)
-        else:
-            await app.bot.send_message(chat_id=GROUP_ID, text=msg)
+    if not news_items:
+        print("❌ خبری برای ارسال وجود ندارد.")
+        return
+    bot = Bot(token=TOKEN)
+    for news in news_items:
+        caption = f"📰 <b>{news['source']}</b> | <b>{news['title']}</b>\n\n{news['summary']}\n\n🔗 {news['link']}"
+        try:
+            if news["image"]:
+                await bot.send_photo(chat_id=GROUP_ID, photo=news["image"], caption=caption, parse_mode="HTML")
+            else:
+                await bot.send_message(chat_id=GROUP_ID, text=caption, parse_mode="HTML")
+            print(f"✅ خبر ارسال شد: {news['title']}")
+        except Exception as e:
+            print(f"❌ خطا در ارسال خبر: {e}")
 
-async def run():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    # دستور start
+async def main():
+    app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
 
-    # زمان‌بندی
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(send_news, "interval", minutes=1, args=[app])
+    scheduler.add_job(send_news, "interval", seconds=60)
     scheduler.start()
 
     print("✅ ربات در حال اجراست و هر 1 دقیقه چک می‌کند...")
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    await app.updater.wait()
+    await app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(run())
+    asyncio.run(main())
