@@ -11,9 +11,8 @@ TOKEN = os.getenv("BOT_TOKEN")
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-async def scheduled_job(application):
+async def scheduled_job(bot):
     try:
-        bot = application.bot
         print("🔄 در حال اجرای scheduled_job...")
         await fetch_and_send_news(sources, bot, GROUP_ID)
     except Exception as e:
@@ -21,16 +20,14 @@ async def scheduled_job(application):
 
 async def main():
     application = ApplicationBuilder().token(TOKEN).build()
+    bot = application.bot
 
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(scheduled_job, "interval", seconds=60, max_instances=1, coalesce=True, args=[application])
+    scheduler.add_job(scheduled_job, "interval", seconds=60, args=[bot], max_instances=1, coalesce=True)
     scheduler.start()
 
     print("🚀 ربات خبری کافه شمس در حال اجراست...")
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())
