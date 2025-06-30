@@ -14,6 +14,7 @@ with open("sources.json", "r", encoding="utf-8") as f:
 async def scheduled_job(application):
     try:
         bot = application.bot
+        print("🔄 در حال اجرای scheduled_job...")
         await fetch_and_send_news(sources, bot, GROUP_ID)
     except Exception as e:
         print(f"❗️خطا در scheduled_job: {e}")
