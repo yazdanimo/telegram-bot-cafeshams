@@ -1,34 +1,31 @@
 import os
+import json
 import asyncio
-import nest_asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import ApplicationBuilder
 from fetch_news import fetch_and_send_news
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# اعمال پچ روی event loop
-nest_asyncio.apply()
+GROUP_ID = -1002514471809  # آیدی عددی گروه سردبیری
+TOKEN = os.getenv("BOT_TOKEN")
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_ID = -1002514471809  # آیدی گروه سردبیری
-
-async def start(update, context):
-    await update.message.reply_text("✅ ربات خبری کافه شمس فعال است.")
+# بارگذاری منابع از فایل sources.json
+with open("sources.json", "r", encoding="utf-8") as f:
+    sources = json.load(f)
 
 async def scheduled_job():
-    from telegram import Bot
-    bot = Bot(BOT_TOKEN)
-    await fetch_and_send_news(bot, GROUP_ID)
+    await fetch_and_send_news(sources, bot, GROUP_ID)
 
 async def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
+    application = ApplicationBuilder().token(TOKEN).build()
+    global bot
+    bot = application.bot
 
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(scheduled_job, "interval", minutes=1)
+    scheduler.add_job(scheduled_job, "interval", seconds=60)
     scheduler.start()
 
     print("🚀 ربات در حال اجراست...")
-    await app.run_polling()
+    await application.run_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
