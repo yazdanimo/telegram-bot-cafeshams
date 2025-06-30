@@ -5,3 +5,5 @@ sumy
 requests
 apscheduler
 nest_asyncio
+langdetect
+deep-translator
