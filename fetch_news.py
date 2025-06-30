@@ -1,63 +1,38 @@
-import feedparser
-import html
-import hashlib
+import os
+import json
 import asyncio
-from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
-import warnings
-from utils import clean_text, fetch_url, async_translate, detect_language, summarize_text, download_image, is_duplicate
+from telegram.ext import ApplicationBuilder
+from fetch_news import fetch_and_send_news
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+GROUP_ID = -1002514471809  # آیدی عددی گروه سردبیری
+TOKEN = os.getenv("BOT_TOKEN")
 
-async def fetch_and_send_news(sources, bot, group_id):
-    for source in sources:
-        url = source.get("url")
-        name = source.get("name")
-        language = source.get("language", "auto")
+with open("sources.json", "r", encoding="utf-8") as f:
+    sources = json.load(f)
 
-        if not url or not name:
-            continue
+async def scheduled_job():
+    try:
+        await fetch_and_send_news(sources, bot, GROUP_ID)
+    except Exception as e:
+        print(f"خطا در scheduled_job: {e}")
 
-        try:
-            content = await fetch_url(url)
-            feed = feedparser.parse(content)
+async def run_bot():
+    application = ApplicationBuilder().token(TOKEN).build()
+    global bot
+    bot = application.bot
 
-            for entry in feed.entries:
-                title = html.unescape(entry.get("title", "")).strip()
-                link = entry.get("link", "").strip()
-                summary = html.unescape(entry.get("summary", "")).strip()
-                unique_id = hashlib.sha256((title + link).encode()).hexdigest()
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(scheduled_job, "interval", seconds=60, max_instances=1, coalesce=True)
+    scheduler.start()
 
-                if is_duplicate(unique_id):
-                    continue
+    print("🚀 ربات در حال اجراست...")
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    await asyncio.Event().wait()
 
-                page_html = await fetch_url(link)
-                soup = BeautifulSoup(page_html, "html.parser")
-                text = clean_text(soup.get_text())
-
-                if len(text) < 200:
-                    text += "\n" + summary
-
-                lang = detect_language(text)
-                if lang not in ["fa", "en"]:
-                    text = await async_translate(text, target="en")
-
-                if lang == "en":
-                    text = await async_translate(text, target="fa")
-
-                short_text = summarize_text(text)
-                image_url = await download_image(soup)
-
-                caption = f"{name} | {title}\n\n{short_text}\n\n[لینک خبر]({link})"
-
-                try:
-                    if image_url:
-                        await bot.send_photo(chat_id=group_id, photo=image_url, caption=caption, parse_mode='Markdown')
-                    else:
-                        await bot.send_message(chat_id=group_id, text=caption, parse_mode='Markdown')
-
-                    await asyncio.sleep(2)  # جلوگیری از Flood control
-                except Exception as e:
-                    print(f"❗️ خطا در ارسال خبر: {e}")
-
-        except Exception as e:
-            print(f"❗️ خطا در پردازش {url}: {e}")
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.create_task(run_bot())
+    loop.run_forever()
