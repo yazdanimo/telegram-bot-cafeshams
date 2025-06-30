@@ -1,3 +1,11 @@
+import re
+
+def clean_text(text):
+    if not text:
+        return ""
+    text = re.sub(r'\s+', ' ', text)  # حذف فاصله‌های اضافه
+    text = re.sub(r'\u200c', '', text)  # حذف نیم‌فاصله
+    return text.strip()
 from deep_translator import GoogleTranslator
 from langdetect import detect
 
