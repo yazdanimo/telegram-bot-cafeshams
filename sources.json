@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Reuters",
+    "url": "http://feeds.reuters.com/reuters/worldNews"
+  },
+  {
+    "name": "Al Jazeera",
+    "url": "https://www.aljazeera.com/xml/rss/all.xml"
+  },
+  {
+    "name": "IRNA",
+    "url": "https://www.irna.ir/rss"
+  },
+  {
+    "name": "Tasnim News",
+    "url": "https://www.tasnimnews.com/rss"
+  },
+  {
+    "name": "Telegram | IranIntl",
+    "url": "https://rsshub.app/telegram/channel/IranIntl"
+  }
+]
