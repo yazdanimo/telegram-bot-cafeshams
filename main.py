@@ -3,10 +3,7 @@ import asyncio
 from telegram.ext import ApplicationBuilder
 from fetch_news import fetch_and_send_news
 
-# آیدی گروه پشتیبانی (سردبیری)
 GROUP_CHAT_ID = -1002514471809
-
-# ذخیره لینک‌های ارسال‌شده
 sent_urls = set()
 
 async def scheduled_job(application):
@@ -21,7 +18,6 @@ async def main():
     token = os.getenv("BOT_TOKEN")
     app = ApplicationBuilder().token(token).build()
 
-    # اجرای job هر ۱۵ ثانیه
     async def run_scheduler():
         while True:
             await scheduled_job(app)
@@ -32,4 +28,12 @@ async def main():
     await app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "already running" in str(e):
+            loop = asyncio.get_event_loop()
+            loop.create_task(main())
+            loop.run_forever()
+        else:
+            raise e
