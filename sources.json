@@ -1,14 +1,23 @@
 [
-  {
-    "name": "Reuters",
-    "url": "https://feeds.reuters.com/reuters/topNews"
-  },
-  {
-    "name": "Associated Press",
-    "url": "https://www.apnews.com/apf-topnews?format=RSS"
-  },
-  {
-    "name": "Al Jazeera",
-    "url": "https://www.aljazeera.com/xml/rss/all.xml"
-  }
+  { "name": "Fars News", "url": "https://www.farsnews.ir/rss" },
+  { "name": "Tasnim News", "url": "https://www.tasnimnews.com/fa/rss/feed" },
+  { "name": "Mehr News", "url": "https://www.mehrnews.com/rss" },
+  { "name": "Tehran Times", "url": "https://www.tehrantimes.com/rss" },
+  { "name": "IRNA", "url": "https://www.irna.ir/rss" },
+  { "name": "ISNA", "url": "https://www.isna.ir/rss" },
+  { "name": "Shargh Daily", "url": "https://sharghdaily.com/rss" },
+  { "name": "Etemad", "url": "https://etemadonline.com/rss" },
+  { "name": "HamMihan", "url": "https://hammihanonline.ir/rss" },
+  { "name": "Sazandegi", "url": "https://sazandeginews.com/rss" },
+  { "name": "Khabar Online", "url": "https://www.khabaronline.ir/rss" },
+  { "name": "Arman Emrooz", "url": "https://www.armanmeli.ir/rss" },
+  { "name": "Didar News", "url": "https://didarnews.ir/rss" },
+  { "name": "Jamaran", "url": "https://www.jamaran.ir/rss" },
+  { "name": "Iran Newspaper", "url": "https://www.irannewspaper.ir/rss" },
+  { "name": "Iran Human Rights", "url": "https://iranhr.net/en/rss" },
+  { "name": "Reuters", "url": "https://feeds.reuters.com/reuters/topNews" },
+  { "name": "Associated Press", "url": "https://www.apnews.com/apf-topnews?format=RSS" },
+  { "name": "Al Jazeera English", "url": "https://www.aljazeera.com/xml/rss/all.xml" },
+  { "name": "The Guardian", "url": "https://www.theguardian.com/world/rss" },
+  { "name": "The New York Times", "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml" }
 ]
