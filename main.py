@@ -1,39 +1,35 @@
 import os
-import json
 import asyncio
 from telegram.ext import ApplicationBuilder
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fetch_news import fetch_and_send_news
 
-GROUP_ID = -1002514471809
-TOKEN = os.getenv("BOT_TOKEN")
+# آیدی گروه پشتیبانی (سردبیری)
+GROUP_CHAT_ID = -1002514471809
 
-with open("sources.json", "r", encoding="utf-8") as f:
-    sources = json.load(f)
+# ذخیره لینک‌های ارسال‌شده
+sent_urls = set()
 
-async def scheduled_job(bot):
+async def scheduled_job(application):
+    global sent_urls
+    print("🔄 اجرای scheduled_job در حال انجام است...")
     try:
-        print("🔄 در حال اجرای scheduled_job...")
-        await fetch_and_send_news(sources, bot, GROUP_ID)
+        sent_urls = await fetch_and_send_news(application.bot, GROUP_CHAT_ID, sent_urls)
     except Exception as e:
-        print(f"❗️خطا در scheduled_job: {e}")
+        print(f"❗️ خطا در اجرای scheduled_job: {e}")
 
 async def main():
-    application = ApplicationBuilder().token(TOKEN).build()
-    bot = application.bot
+    token = os.getenv("BOT_TOKEN")
+    app = ApplicationBuilder().token(token).build()
 
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(scheduled_job, "interval", seconds=60, args=[bot], max_instances=1, coalesce=True)
-    scheduler.start()
+    # اجرای job هر ۱۵ ثانیه
+    async def run_scheduler():
+        while True:
+            await scheduled_job(app)
+            await asyncio.sleep(15)
 
-    print("🚀 ربات خبری کافه شمس در حال اجراست...")
-    await application.run_polling()
+    asyncio.create_task(run_scheduler())
+    print("🚀 ربات در حال اجراست...")
+    await app.run_polling()
 
-# ✅ به جای asyncio.run(...) از این استفاده کن:
 if __name__ == "__main__":
-    import nest_asyncio
-    nest_asyncio.apply()
-
-    loop = asyncio.get_event_loop()
-    loop.create_task(main())
-    loop.run_forever()
+    asyncio.run(main())
