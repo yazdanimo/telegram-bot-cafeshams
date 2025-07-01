@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from googletrans import Translator
+from translatepy import Translator
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
@@ -54,35 +54,34 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             sent_urls.add(link)
             total_items += 1
 
-            # تشخیص زبان و ترجمه
+            text_to_process = f"{title}. {description}"
             try:
-                lang = detect(title + " " + description)
+                lang = detect(text_to_process)
             except:
                 lang = "unknown"
 
-            text_to_process = title + ". " + description
+            # اگر زبان غیر انگلیسی/فارسی بود → اول به انگلیسی ترجمه کن
             if lang not in ["en", "fa"]:
                 try:
-                    text_to_process = translator.translate(text_to_process, dest="en").text
+                    text_to_process = translator.translate(text_to_process, "English").result
                     print("🌐 ترجمه اولیه به انگلیسی انجام شد.")
                 except Exception as e:
-                    print(f"❗️ خطا در ترجمه: {e}")
+                    print(f"❗️ خطا در ترجمه به انگلیسی: {e}")
                     continue
 
-            # خلاصه‌سازی متن
+            # خلاصه‌سازی
             try:
                 summary = summarize_text(text_to_process)
-            except Exception as e:
+            except:
                 summary = text_to_process[:400]
 
-            # ترجمه به فارسی اگر انگلیسی بود
+            # اگر زبان اصلی انگلیسی بود → ترجمه نهایی به فارسی
             if lang == "en":
                 try:
-                    summary = translator.translate(summary, dest="fa").text
+                    summary = translator.translate(summary, "Persian").result
                 except Exception as e:
-                    print(f"❗️ خطا در ترجمه به فارسی: {e}")
+                    print(f"❗️ خطا در ترجمه نهایی به فارسی: {e}")
 
-            # پیام نهایی
             caption = f"🗞 {name}\n\n🔹 {title}\n\n📌 {summary}\n\n🌐 {link}"
 
             try:
