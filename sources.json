@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Reuters",
+    "url": "https://feeds.reuters.com/reuters/topNews"
+  },
+  {
+    "name": "Associated Press",
+    "url": "https://www.apnews.com/apf-topnews?format=RSS"
+  },
+  {
+    "name": "Al Jazeera",
+    "url": "https://www.aljazeera.com/xml/rss/all.xml"
+  }
+]
