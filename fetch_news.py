@@ -79,7 +79,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 except Exception as e:
                     print(f"❗️ خطا در ترجمه نهایی به فارسی: {e}")
 
-            caption = f"🗞 {name}\n\n🔹 {title}\n\n📌 {summary}\n\n🌐 {link}"
+            # ✂️ کوتاه‌سازی لینک در صورت طولانی بودن
+            short_link = link[:50] + "..." if len(link) > 60 else link
+
+            # 📝 کپشن نهایی با تگ برند
+            caption = f"🗞 {name}\n\n🔹 {title}\n\n📌 {summary}\n\n🌐 {short_link}\n\n@cafeshamss"
 
             try:
                 if image_url:
