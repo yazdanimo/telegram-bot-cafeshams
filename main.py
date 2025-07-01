@@ -17,7 +17,7 @@ async def scheduled_job(bot):
 async def start_bot():
     token = os.getenv("BOT_TOKEN")
     if not token:
-        print("❗️ BOT_TOKEN در محیط تعریف نشده!")
+        print("❗️ BOT_TOKEN تعریف نشده.")
         return
 
     app = ApplicationBuilder().token(token).build()
@@ -27,11 +27,11 @@ async def start_bot():
             await scheduled_job(app.bot)
             await asyncio.sleep(15)
 
-    # اجرای هم‌زمان scheduled job و polling ربات
     asyncio.create_task(run_scheduler())
     print("🚀 ربات در حال اجراست...")
     await app.run_polling()
 
-# Railway خودش event loop رو مدیریت می‌کنه؛ فقط یک بار اجراش کنیم
-if __name__ == "__main__":
-    asyncio.run(start_bot())
+# برای محیط‌هایی با event loop فعال مثل Railway
+loop = asyncio.get_event_loop()
+loop.create_task(start_bot())
+loop.run_forever()
