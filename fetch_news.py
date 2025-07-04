@@ -10,12 +10,12 @@ import json
 import nltk
 import asyncio
 
-# 🧠 آماده‌سازی NLTK برای خلاصه‌سازی
+# 🧠 آماده‌سازی خلاصه‌سازی
 nltk.download("punkt")
 
 translator = Translator()
 
-# 📚 بارگذاری منابع خبری
+# 📚 بارگذاری منابع
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
@@ -26,16 +26,18 @@ def summarize_text(text, sentence_count=4):
         summarized = " ".join(str(sentence) for sentence in summary).strip()
         return summarized if len(summarized) > 100 else text[:400]
     except Exception as e:
-        print(f"⚠️ خطا در خلاصه‌سازی متن: {e}")
+        print(f"⚠️ خطا در خلاصه‌سازی: {e}")
         return text[:400]
 
 async def fetch_and_send_news(bot, chat_id, sent_urls):
+    headers = { "User-Agent": "Mozilla/5.0" }  # برای منابع محدود مثل Reuters
+
     for source in sources:
         name = source.get("name")
         url = source.get("url")
 
         try:
-            rss = requests.get(url, timeout=10)
+            rss = requests.get(url, timeout=10, headers=headers)
             rss.raise_for_status()
         except Exception as e:
             print(f"⚠️ خطا در دریافت RSS از {name}: {e}")
@@ -45,7 +47,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
         items = soup.find_all("item")
         print(f"\n📡 دریافت RSS از {name} → مجموع: {len(items)}")
 
-        for item in items[:3]:  # محدود کردن به ۳ خبر برای کنترل flood
+        for item in items[:3]:
             link = item.link.text.strip() if item.link else ""
             if not link or link in sent_urls:
                 continue
@@ -56,22 +58,22 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             image_url = extract_image_from_html(raw_html)
             full_text, _ = extract_full_content(link)
 
-            # رد خبرهایی با متن ناقص یا غیرخبری
+            # رد محتوای ضعیف یا قالب سایت
             if not full_text or len(full_text.strip()) < 300:
-                print(f"⚠️ رد شد: محتوای ضعیف یا غیرخبری از {name}")
+                print(f"⚠️ رد شد: محتوای ناقص از {name}")
                 continue
-            if any(x in full_text for x in ["Languages", "Privacy Policy", "404", "کد استاتوس", "صفحه در دسترس نیست"]):
-                print(f"⚠️ رد شد: محتوای مشکوک یا خطای HTML از {name}")
+            garbage_keywords = ["فارسی", "العربية", "English", "تماس با ما", "تبلیغات", "آرشیو", "فید خبر", "کد استاتوس", "صفحه در دسترس نیست"]
+            if any(word in full_text for word in garbage_keywords):
+                print(f"⚠️ رد شد: محتوای قالب یا منوی سایت از {name}")
                 continue
 
-            # ترجمه اگر خبر انگلیسی باشد
             try:
                 lang = detect(title + full_text)
                 if lang == "en":
                     title = translator.translate(title, "Persian").result
                     full_text = translator.translate(full_text, "Persian").result
             except Exception as e:
-                print(f"⚠️ خطا در ترجمه یا تشخیص زبان خبر {name}: {e}")
+                print(f"⚠️ خطا در ترجمه یا زبان خبر از {name}: {e}")
                 continue
 
             summary = summarize_text(full_text, 4)
@@ -90,8 +92,8 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     await bot.send_message(chat_id=chat_id, text=caption[:4096])
                 print(f"✅ خبر ارسال شد از {name}")
                 sent_urls.add(link)
-                await asyncio.sleep(2)  # فاصله ۲ ثانیه برای جلوگیری از flood
+                await asyncio.sleep(2)  # کنترل flood
             except Exception as e:
-                print(f"❗️ خطا در ارسال خبر از {name}: {e}")
+                print(f"❗️ خطا در ارسال از {name}: {e}")
 
     return sent_urls
