@@ -3,48 +3,43 @@ import asyncio
 from telegram.ext import ApplicationBuilder
 from fetch_news import fetch_and_send_news
 
-# 🔐 مقدار chat ID مقصد (مثلاً: -1001234567890 یا آی‌دی عددی شخصی‌ات برای تست)
+# 📬 مقدار chat_id از محیط Railway یا مستقیم
 GROUP_CHAT_ID = int(os.getenv("CHAT_ID", "-1000000000000"))
-
-# 🔐 توکن ربات از محیط Railway
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# لیست لینک‌هایی که ارسال شدن (در حالت واقعی می‌تونه در فایل ذخیره بشه)
 sent_urls = set()
 
 async def scheduled_job(bot):
     global sent_urls
-    print("🔄 اجرای scheduled_job در حال انجام است...")
+    print("🔄 اجرای scheduled_job...")
     try:
         sent_urls = await fetch_and_send_news(bot, GROUP_CHAT_ID, sent_urls)
     except Exception as e:
-        print(f"❗️ خطا در اجرای scheduled_job: {e}")
+        print(f"❗️ خطا در scheduled_job: {e}")
 
 async def run_bot():
     if not BOT_TOKEN:
-        print("❗️ BOT_TOKEN تنظیم نشده.")
+        print("❗️ توکن ربات تعریف نشده.")
         return
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # تست اولیه برای اتصال به چت
+    # تست ارسال پیام برای بررسی chat_id
     try:
         await app.bot.send_message(chat_id=GROUP_CHAT_ID, text="✅ تست اتصال از کافه شمس ☕️🍪")
-        print("📬 پیام تستی ارسال شد.")
+        print("📨 پیام تستی با موفقیت ارسال شد.")
     except Exception as e:
-        print(f"🚫 خطا در ارسال پیام تستی: {e}")
+        print(f"🚫 خطا در ارسال تستی: {e}")
 
-    # اجرای job زمان‌بندی‌شده
+    # اجرای job هر ۶۰ ثانیه
     async def scheduler():
         while True:
             await scheduled_job(app.bot)
-            await asyncio.sleep(60)  # هر ۶۰ ثانیه اجرا بشه
+            await asyncio.sleep(60)
 
-    asyncio.create_task(scheduler())
-
-    # اجرای اصلی اپلیکیشن
+    # اجرای اپلیکیشن
     await app.initialize()
     await app.start()
+    asyncio.create_task(scheduler())
     await app.updater.start_polling()
     await asyncio.Event().wait()
 
