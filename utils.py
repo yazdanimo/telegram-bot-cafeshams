@@ -16,12 +16,34 @@ def extract_full_content(url):
     try:
         response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
-        candidates = soup.find_all(["p", "div"])
-        full_text = " ".join(p.text for p in candidates if len(p.text.strip()) > 50)
-        if len(full_text.strip()) < 100:
-            print(f"⚠️ محتوای ناکافی از {url}")
+
+        # تلاش برای یافتن بخش اصلی خبر (کلاس مقاله)
+        article = soup.find(class_="news-body") or soup.find("article")
+        if article:
+            full_text = " ".join(p.text for p in article.find_all("p") if len(p.text.strip()) > 50)
+        else:
+            full_text = " ".join(p.text for p in soup.find_all("p") if len(p.text.strip()) > 50)
+
+        full_text = full_text.strip()
+
+        # محتوای غیرخبری یا ناقص
+        garbage_keywords = [
+            "فارسی", "العربية", "English",
+            "تبلیغات", "آرشیو", "تماس با ما",
+            "فید خبر", "صفحه در دسترس نیست",
+            "Privacy Policy", "404", "کد استاتوس",
+            "اینستاگرام", "توییتر", "آپارات", "روبیکا", "ایتا"
+        ]
+
+        if not full_text or len(full_text) < 300:
+            print(f"⚠️ رد شد: متن ناکافی از {url}")
             return "", []
-        return full_text.strip(), []
+
+        if any(keyword in full_text for keyword in garbage_keywords):
+            print(f"⚠️ رد شد: محتوای قالب یا منو از {url}")
+            return "", []
+
+        return full_text, []
     except Exception as e:
-        print(f"❗️ خطا در دریافت محتوای کامل از: {url} → {e}")
+        print(f"❗️ خطا در دریافت یا پردازش صفحه: {url} → {e}")
         return "", []
