@@ -8,20 +8,27 @@ from langdetect import detect
 from utils import extract_image_from_html
 import json
 
-# بارگذاری منابع از فایل JSON
+
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
 translator = Translator()
 
-def summarize_text(text, sentence_count=3):
+def summarize_text(text, sentence_count=4):
     try:
         parser = PlaintextParser.from_string(text, Tokenizer("english"))
         summarizer = LsaSummarizer()
         summary = summarizer(parser.document, sentence_count)
-        return " ".join(str(sentence) for sentence in summary)
+        summarized = " ".join(str(sentence) for sentence in summary).strip()
+
+        # اگر فقط تیتر تکرار شده، متن کامل‌تر بده
+        if len(summarized) < 100:
+            return text[:400]
+
+        return summarized
     except Exception:
-        return text[:400]  # در صورت خطا در خلاصه‌سازی
+        return text[:400]
+
 
 async def fetch_and_send_news(bot, chat_id, sent_urls):
     total_items = 0
@@ -45,20 +52,18 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
         print(f"\n📡 بررسی منبع: {name} → {url}")
         print(f"🔸 مجموع خبرها: {len(items)}")
 
-        for item in items[:5]:  # محدود کردن به ۵ خبر اول
+        for item in items[:5]:
             title = item.title.text.strip() if item.title else "بدون عنوان"
             link = item.link.text.strip() if item.link else ""
             description = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(description)
 
-            # فیلتر خبرهای تکراری یا بدون لینک
             if not link or link in sent_urls:
                 total_duplicates += 1
                 continue
             sent_urls.add(link)
             total_items += 1
 
-            # حذف خبرهایی که تیتر «عکس/» دارن ولی تصویر ندارن
             if title.startswith("عکس/") and not image_url:
                 print(f"⚠️ خبر تصویری بدون عکس از {name} → رد شد")
                 continue
@@ -69,26 +74,23 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             except:
                 lang = "unknown"
 
-            # ترجمه اگر زبان غیر قابل شناسایی بود
             if lang not in ["fa", "en"]:
                 try:
                     combined_text = translator.translate(combined_text, "English").result
                 except:
                     pass
 
-            summary = summarize_text(combined_text, sentence_count=3)
+            summary = summarize_text(combined_text, sentence_count=4)
 
-            # اگر خلاصه انگلیسی بود، ترجمه به فارسی
             if lang == "en":
                 try:
                     summary = translator.translate(summary, "Persian").result
                 except:
                     pass
 
-            # ساخت کپشن نهایی بدون لینک
             caption = (
                 f"📰 {name}\n"
-                f"🔸 {title.strip()}\n\n"
+                f"🔸 {title}\n\n"
                 f"📃 {summary.strip()}\n\n"
                 f"🖊 گزارش از {name} | 🆔 @cafeshamss     کافه شمس ☕️🍪"
             )
@@ -106,9 +108,9 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
     print("\n📊 آمار اجرای فعلی:")
     print(f"🔹 منابع بررسی‌شده: {len(sources)}")
-    print(f"🔹 خبرهای تکراری: {total_duplicates}")
     print(f"🔹 خبرهای ارسال‌شده: {total_sent}")
+    print(f"🔹 تکراری‌ها: {total_duplicates}")
     if not any_news_sent:
         print("⚠️ هیچ خبری ارسال نشد.")
-    
+
     return sent_urls
