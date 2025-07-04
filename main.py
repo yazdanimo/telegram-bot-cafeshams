@@ -1,11 +1,14 @@
-import os
 import asyncio
 from telegram.ext import ApplicationBuilder
 from fetch_news import fetch_and_send_news
 
-# 📬 مقدار chat_id از محیط Railway یا مستقیم
-GROUP_CHAT_ID = int(os.getenv("CHAT_ID", "-1000000000000"))
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+# 🔐 مقدار chat ID ثابت برای تست خصوصی (آیدی خودت)
+GROUP_CHAT_ID = 53266006
+
+# 🔐 توکن ربات (به صورت مستقیم وارد کن یا از محیط بخون)
+BOT_TOKEN = "توکن_ربات_تو_اینجا"
+
+# مجموعه لینک‌های ارسال‌شده
 sent_urls = set()
 
 async def scheduled_job(bot):
@@ -18,7 +21,7 @@ async def scheduled_job(bot):
 
 async def run_bot():
     if not BOT_TOKEN:
-        print("❗️ توکن ربات تعریف نشده.")
+        print("❗️ BOT_TOKEN تعریف نشده.")
         return
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -36,11 +39,9 @@ async def run_bot():
             await scheduled_job(app.bot)
             await asyncio.sleep(60)
 
-    # اجرای اپلیکیشن
     await app.initialize()
     await app.start()
     asyncio.create_task(scheduler())
-    await app.updater.start_polling()
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
