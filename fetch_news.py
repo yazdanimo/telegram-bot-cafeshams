@@ -6,11 +6,11 @@ from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
 from langdetect import detect
 from utils import extract_image_from_html
-import json
 
-
-with open("sources.json", "r", encoding="utf-8") as f:
-    sources = json.load(f)
+# منبع تستی فقط: Mehr News
+sources = [
+    { "name": "Mehr News", "url": "https://www.mehrnews.com/rss" }
+]
 
 translator = Translator()
 
@@ -20,21 +20,13 @@ def summarize_text(text, sentence_count=4):
         summarizer = LsaSummarizer()
         summary = summarizer(parser.document, sentence_count)
         summarized = " ".join(str(sentence) for sentence in summary).strip()
-
-        # اگر فقط تیتر تکرار شده، متن کامل‌تر بده
-        if len(summarized) < 100:
-            return text[:400]
-
-        return summarized
+        return summarized if len(summarized) > 100 else text[:400]
     except Exception:
         return text[:400]
 
-
 async def fetch_and_send_news(bot, chat_id, sent_urls):
     total_items = 0
-    total_duplicates = 0
     total_sent = 0
-    any_news_sent = False
 
     for source in sources:
         name = source.get("name")
@@ -58,12 +50,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             description = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(description)
 
-            if not link or link in sent_urls:
-                total_duplicates += 1
-                continue
-            sent_urls.add(link)
-            total_items += 1
-
+            # فقط فیلتر تیتر عکس بدون تصویر
             if title.startswith("عکس/") and not image_url:
                 print(f"⚠️ خبر تصویری بدون عکس از {name} → رد شد")
                 continue
@@ -84,6 +71,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
             if lang == "en":
                 try:
+                    title = translator.translate(title, "Persian").result
                     summary = translator.translate(summary, "Persian").result
                 except:
                     pass
@@ -102,15 +90,9 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     await bot.send_message(chat_id=chat_id, text=caption[:4096])
                 print(f"✅ خبر ارسال شد از {name}")
                 total_sent += 1
-                any_news_sent = True
             except Exception as e:
                 print(f"❗️ خطا در ارسال پیام از {name}: {e}")
 
-    print("\n📊 آمار اجرای فعلی:")
-    print(f"🔹 منابع بررسی‌شده: {len(sources)}")
-    print(f"🔹 خبرهای ارسال‌شده: {total_sent}")
-    print(f"🔹 تکراری‌ها: {total_duplicates}")
-    if not any_news_sent:
-        print("⚠️ هیچ خبری ارسال نشد.")
-
-    return sent_urls
+    print("\n📊 گزارش تست:")
+    print(f"🔹 خبر بررسی‌شده: {total_items}")
+    print(f"🔹 ارسال موفق: {total_sent}")
