@@ -7,10 +7,15 @@ from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
 from utils import extract_full_content, extract_image_from_html
 import json
+import nltk
+import asyncio
+
+# 🔧 دانلود tokenizer مورد نیاز برای خلاصه‌سازی
+nltk.download("punkt")
 
 translator = Translator()
 
-# منابع خبر از فایل json
+# 📚 بارگذاری منابع خبری
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
@@ -33,14 +38,14 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             rss = requests.get(url, timeout=10)
             rss.raise_for_status()
         except Exception as e:
-            print(f"⚠️ خطا در دریافت RSS منبع {name}: {e}")
+            print(f"⚠️ خطا در دریافت RSS از {name}: {e}")
             continue
 
         soup = BeautifulSoup(rss.content, "xml")
         items = soup.find_all("item")
         print(f"\n📡 دریافت RSS از {name} → مجموع: {len(items)}")
 
-        for item in items[:5]:
+        for item in items[:3]:  # محدود به ۳ خبر برای کنترل flood
             link = item.link.text.strip() if item.link else ""
             if not link or link in sent_urls:
                 continue
@@ -51,7 +56,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             image_url = extract_image_from_html(raw_html)
             full_text, _ = extract_full_content(link)
 
-            # رد کردن اخبار با محتوای ضعیف
             if not full_text or len(full_text.strip()) < 100:
                 print(f"⚠️ رد شد: محتوای ناکافی از {name}")
                 continue
@@ -62,7 +66,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     title = translator.translate(title, "Persian").result
                     full_text = translator.translate(full_text, "Persian").result
             except Exception as e:
-                print(f"⚠️ خطا در ترجمه یا تشخیص زبان خبر {name}: {e}")
+                print(f"⚠️ خطا در ترجمه یا تشخیص زبان: {e}")
                 continue
 
             summary = summarize_text(full_text, 4)
@@ -80,7 +84,8 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     await bot.send_message(chat_id=chat_id, text=caption[:4096])
                 print(f"✅ خبر ارسال شد از {name}")
                 sent_urls.add(link)
+                await asyncio.sleep(2)  # ⏳ فاصله بین ارسال پیام‌ها
             except Exception as e:
-                print(f"❗️ خطا در ارسال خبر از {name}: {e}")
+                print(f"❗️ خطا در ارسال از {name}: {e}")
 
     return sent_urls
