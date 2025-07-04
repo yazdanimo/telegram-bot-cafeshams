@@ -8,13 +8,44 @@ import asyncio
 
 translator = Translator()
 
-# بارگذاری منابع خبری با دسته‌بندی
+# 👇 بارگذاری منابع خبری دسته‌بندی‌شده
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
 def summarize_text(text, max_chars=400):
     paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 50]
     return "\n".join(paragraphs[:3])[:max_chars]
+
+def fix_named_entities(text):
+    corrections = {
+        "Araqchi": "عراقچی",
+        "KSA": "عربستان سعودی",
+        "Aliza Enati": "علیزا اناتی",
+        "Faisal bin Farhan": "فیصل بن فرحان",
+        "Walid bin Abdulkarim Al-Khulaifi": "ولید بن عبدالکریم الخلیفی"
+    }
+    for eng, fa in corrections.items():
+        text = text.replace(eng, fa)
+    return text
+
+def clean_incomplete_sentences(text):
+    lines = text.split("\n")
+    cleaned = []
+    for line in lines:
+        if len(line.strip()) < 20 or line.strip().endswith(("...", "بین دو", "،")):
+            continue
+        cleaned.append(line.strip())
+    return "\n".join(cleaned)
+
+def translate_text(text):
+    try:
+        raw = fix_named_entities(text)
+        cleaned = clean_incomplete_sentences(raw)
+        translated = translator.translate(cleaned, "Persian").result
+        return translated
+    except Exception as e:
+        print(f"⚠️ خطا در ترجمه: {e}")
+        return text[:400]
 
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = { "User-Agent": "Mozilla/5.0" }
@@ -24,7 +55,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         url = source.get("url")
         category = source.get("category", "news")
 
-        # اگر کاربر بخواد فقط منابع خاصی رو بخونه
         if category_filter and category != category_filter:
             continue
 
@@ -61,10 +91,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             try:
                 lang = detect(title + full_text)
                 if lang == "en":
-                    title = translator.translate(title, "Persian").result
-                    full_text = translator.translate(full_text, "Persian").result
+                    title = translate_text(title)
+                    full_text = translate_text(full_text)
             except Exception as e:
-                print(f"⚠️ ترجمه انجام نشد از {name}: {e}")
+                print(f"⚠️ خطا در تشخیص زبان یا ترجمه از {name}: {e}")
                 continue
 
             summary = summarize_text(full_text)
