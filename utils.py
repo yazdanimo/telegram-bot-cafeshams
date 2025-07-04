@@ -1,49 +1,32 @@
-from bs4 import BeautifulSoup
 import requests
+from bs4 import BeautifulSoup
 
 def extract_image_from_html(html):
-    try:
-        soup = BeautifulSoup(html, "html.parser")
-        img = soup.find("img")
-        if img and img.get("src"):
-            return img["src"]
-        return None
-    except Exception as e:
-        print(f"❗️ خطا در استخراج تصویر: {e}")
-        return None
+    soup = BeautifulSoup(html, "html.parser")
+    img = soup.find("img")
+    return img["src"] if img and img.has_attr("src") else None
 
 def extract_full_content(url):
+    headers = { "User-Agent": "Mozilla/5.0" }
+
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=10, headers=headers)
+        response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
 
-        # تلاش برای یافتن بخش اصلی خبر (کلاس مقاله)
-        article = soup.find(class_="news-body") or soup.find("article")
-        if article:
-            full_text = " ".join(p.text for p in article.find_all("p") if len(p.text.strip()) > 50)
-        else:
-            full_text = " ".join(p.text for p in soup.find_all("p") if len(p.text.strip()) > 50)
-
-        full_text = full_text.strip()
-
-        # محتوای غیرخبری یا ناقص
-        garbage_keywords = [
-            "فارسی", "العربية", "English",
-            "تبلیغات", "آرشیو", "تماس با ما",
-            "فید خبر", "صفحه در دسترس نیست",
-            "Privacy Policy", "404", "کد استاتوس",
-            "اینستاگرام", "توییتر", "آپارات", "روبیکا", "ایتا"
+        # لیست کلاس‌های احتمالی متن اصلی خبر
+        content_classes = [
+            "article-content", "news-body", "content", "item-text", "post-content",
+            "entry-content", "story-body", "article-body", "main-content", "body-text"
         ]
 
-        if not full_text or len(full_text) < 300:
-            print(f"⚠️ رد شد: متن ناکافی از {url}")
-            return "", []
-
-        if any(keyword in full_text for keyword in garbage_keywords):
-            print(f"⚠️ رد شد: محتوای قالب یا منو از {url}")
-            return "", []
-
-        return full_text, []
+        for class_name in content_classes:
+            content_div = soup.find(class_=class_name)
+            if content_div:
+                paragraphs = content_div.find_all("p")
+                text = "\n".join(p.get_text(strip=True) for p in paragraphs)
+                return text, soup.title.string if soup.title else ""
+        return "", ""
     except Exception as e:
-        print(f"❗️ خطا در دریافت یا پردازش صفحه: {url} → {e}")
-        return "", []
+        print(f"❌ خطا در گرفتن محتوای کامل خبر از {url}: {e}")
+        return "", ""
