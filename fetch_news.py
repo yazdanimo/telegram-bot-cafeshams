@@ -39,7 +39,7 @@ def clean_messy_phrases(text):
     return text
 
 def is_incomplete(text):
-    bad_endings = ["...", "،", "بین دو", "برای گسترش", "در ۱۲ اوت در ۱۲ اوت"]
+    bad_endings = ["...", "،", "بین دو", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
     return any(text.strip().endswith(ending) for ending in bad_endings)
 
 def clean_incomplete_sentences(text):
@@ -51,13 +51,20 @@ def clean_incomplete_sentences(text):
         cleaned.append(line.strip())
     return "\n".join(cleaned)
 
+def fix_cutoff_translation(text):
+    lines = text.split("\n")
+    if lines and is_incomplete(lines[-1]):
+        print("⚠️ جملهٔ آخر ناقص بود، حذف شد.")
+        return "\n".join(lines[:-1])
+    return text
+
 def translate_text(text):
     try:
         raw = fix_named_entities(text)
         messy = clean_messy_phrases(raw)
         cleaned = clean_incomplete_sentences(messy)
         translated = translator.translate(cleaned, "Persian").result
-        return translated
+        return fix_cutoff_translation(translated)
     except Exception as e:
         print(f"⚠️ خطا در ترجمه: {e}")
         return text[:400]
