@@ -11,25 +11,19 @@ translator = Translator()
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-# اصلاح اسامی خاص و غلط ترجمه‌ها
+# اصلاح اسامی خاص و عباراتی که ترجمه‌شون غلط می‌شه
 def fix_named_entities(text):
     corrections = {
         "Araqchi": "عراقچی",
         "KSA": "عربستان سعودی",
-        "Aliza Enati": "علیزا اناتی",
-        "Faisal bin Farhan": "فیصل بن فرحان",
-        "Walid bin Abdulkarim Al-Khulaifi": "ولید بن عبدالکریم الخلیفی",
-        "Arash Rezavand": "آرش رضاوند",
-        "Sepahan": "سپاهان",
-        "Patrice Carteron": "پاتریس کارترون",
-        "Moharram Navidkia": "محرم نویدکیا",
-        "Umm Salal": "ام‌صلال"
+        "Boston Dynamics": "بوستون داینامیکس",
+        "Santa Maria de Garoña": "سانتا ماریا دی گارونیا"
     }
     for eng, fa in corrections.items():
         text = text.replace(eng, fa)
     return text
 
-# حذف عبارت‌های تکراری یا ناقص
+# حذف عباراتی که معنی ندارن یا تکراری هستن
 def clean_messy_phrases(text):
     replacements = [
         "در ۱۲ اوت در ۱۲ اوت",
@@ -40,7 +34,7 @@ def clean_messy_phrases(text):
         text = text.replace(phrase, "")
     return text
 
-# تشخیص جمله ناقص
+# تشخیص جمله‌های ناقص
 def is_incomplete(text):
     bad_endings = ["...", "،", "بین دو", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
     return any(text.strip().endswith(ending) for ending in bad_endings)
@@ -59,11 +53,17 @@ def clean_incomplete_sentences(text):
 def fix_cutoff_translation(text):
     lines = text.split("\n")
     if lines and is_incomplete(lines[-1]):
-        print("⚠️ جملهٔ آخر ناقص بود، حذف شد.")
         return "\n".join(lines[:-1])
     return text
 
-# ترجمه کامل متن
+# استخراج پاراگراف اول کامل، و ترجمه دقیق
+def extract_intro_paragraph(text):
+    for para in text.split("\n"):
+        if len(para.strip()) > 60 and not is_incomplete(para):
+            return para.strip()
+    return text.strip()[:300]
+
+# ترجمه با اصلاحات و حذف جمله‌های خراب
 def translate_text(text):
     try:
         raw = fix_named_entities(text)
@@ -75,20 +75,13 @@ def translate_text(text):
         print(f"⚠️ خطا در ترجمه: {e}")
         return text[:400]
 
-# بررسی کیفیت اولیه متن
+# بررسی کیفیت کلی متن
 def assess_content_quality(text):
     paragraph_count = len([p for p in text.split("\n") if len(p.strip()) > 40])
     character_count = len(text)
     return character_count >= 300 and paragraph_count >= 2
 
-# استخراج فقط پاراگراف اول برای نمایش
-def extract_intro_paragraph(text):
-    for para in text.split("\n"):
-        if len(para.strip()) > 50:
-            return para.strip()
-    return text.strip()[:300]
-
-# دریافت و ارسال خبرها
+# تابع اصلی دریافت و ارسال خبر
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
 
