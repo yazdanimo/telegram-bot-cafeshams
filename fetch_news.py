@@ -8,16 +8,9 @@ import asyncio
 
 translator = Translator()
 
-# 👇 بارگذاری منابع با دسته‌بندی موضوعی
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-# 📌 خلاصه‌سازی متن خبر
-def summarize_text(text, max_chars=400):
-    paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 50]
-    return "\n".join(paragraphs[:3])[:max_chars]
-
-# 🧠 اصلاح نام‌های خاص برای ترجمه دقیق‌تر
 def fix_named_entities(text):
     corrections = {
         "Araqchi": "عراقچی",
@@ -35,7 +28,6 @@ def fix_named_entities(text):
         text = text.replace(eng, fa)
     return text
 
-# 🧹 پاک‌سازی عبارات تکراری یا بی‌معنا
 def clean_messy_phrases(text):
     replacements = [
         "در ۱۲ اوت در ۱۲ اوت",
@@ -46,17 +38,19 @@ def clean_messy_phrases(text):
         text = text.replace(phrase, "")
     return text
 
-# ✂️ حذف جمله‌های ناقص یا کوتاه
+def is_incomplete(text):
+    bad_endings = ["...", "،", "بین دو", "برای گسترش", "در ۱۲ اوت در ۱۲ اوت"]
+    return any(text.strip().endswith(ending) for ending in bad_endings)
+
 def clean_incomplete_sentences(text):
     lines = text.split("\n")
     cleaned = []
     for line in lines:
-        if len(line.strip()) < 20 or line.strip().endswith(("...", "بین دو", "،")):
+        if len(line.strip()) < 30 or is_incomplete(line):
             continue
         cleaned.append(line.strip())
     return "\n".join(cleaned)
 
-# 🌐 ترجمه هوشمند با اصلاحات
 def translate_text(text):
     try:
         raw = fix_named_entities(text)
@@ -68,14 +62,19 @@ def translate_text(text):
         print(f"⚠️ خطا در ترجمه: {e}")
         return text[:400]
 
-# 📡 تابع اصلی دریافت و ارسال خبر
+def assess_content_quality(text):
+    paragraph_count = len([p for p in text.split("\n") if len(p.strip()) > 40])
+    character_count = len(text)
+    return character_count >= 300 and paragraph_count >= 2
+
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
-    headers = { "User-Agent": "Mozilla/5.0" }
+    headers = {"User-Agent": "Mozilla/5.0"}
 
     for source in sources:
         name = source.get("name")
         url = source.get("url")
         category = source.get("category", "news")
+        content_type = source.get("content_type", "text")
 
         if category_filter and category != category_filter:
             continue
@@ -91,7 +90,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         items = soup.find_all("item")
         print(f"\n📡 دریافت RSS از {name} → مجموع: {len(items)}")
 
-        for item in items[:3]:
+        for item in items[:5]:
             link = item.link.text.strip() if item.link else ""
             if not link or link in sent_urls:
                 continue
@@ -101,13 +100,13 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             image_url = extract_image_from_html(raw_html)
             full_text, _ = extract_full_content(link)
 
-            if not full_text or len(full_text) < 300:
-                print(f"⚠️ رد شد: متن ناکافی یا ضعیف از {name}")
+            if not assess_content_quality(full_text):
+                print(f"⚠️ رد شد: کیفیت متن پایین از {name}")
                 continue
 
             garbage_keywords = ["تماس با ما", "فید خبر", "Privacy", "آرشیو", "404", "العربية"]
             if any(word in full_text for word in garbage_keywords):
-                print(f"⚠️ رد شد: محتوای قالب یا منو از {name}")
+                print(f"⚠️ رد شد: محتوای قالب یا تبلیغ از {name}")
                 continue
 
             try:
@@ -119,12 +118,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 print(f"⚠️ خطا در تشخیص زبان یا ترجمه از {name}: {e}")
                 continue
 
-            summary = summarize_text(full_text)
-
+            clean_text = clean_incomplete_sentences(full_text)
             caption = (
                 f"📡 خبرگزاری {name} ({category})\n"
                 f"{title}\n\n"
-                f"{summary.strip()}\n\n"
+                f"{clean_text.strip()}\n\n"
                 f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
             )
 
@@ -139,4 +137,5 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             except Exception as e:
                 print(f"❗️ خطا در ارسال خبر از {name}: {e}")
 
+    print(f"\n📊 مجموع ارسال‌شده‌ها: {len(sent_urls)}")
     return sent_urls
