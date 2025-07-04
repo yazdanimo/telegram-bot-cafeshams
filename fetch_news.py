@@ -8,7 +8,7 @@ from langdetect import detect
 from utils import extract_image_from_html
 import json
 
-# بارگذاری لیست منابع از فایل
+# بارگذاری منابع
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
@@ -21,7 +21,7 @@ def summarize_text(text, sentence_count=3):
         summary = summarizer(parser.document, sentence_count)
         return " ".join(str(sentence) for sentence in summary)
     except Exception:
-        return text[:400]  # در صورت خطا، خلاصه اولیه بر اساس برش
+        return text[:400]
 
 async def fetch_and_send_news(bot, chat_id, sent_urls):
     total_items = 0
@@ -51,6 +51,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             description = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(description)
 
+            # فیلتر تیترهای تکراری یا بدون لینک
             if not link or link in sent_urls:
                 total_duplicates += 1
                 continue
@@ -58,8 +59,13 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             sent_urls.add(link)
             total_items += 1
 
-            combined_text = f"{title}. {description}"
+            # فیلتر تیترهایی که با "عکس/" شروع می‌شن اما تصویر ندارن
+            if title.startswith("عکس/") and not image_url:
+                print(f"⚠️ خبر تصویری بدون عکس از {name} → رد شد")
+                continue
 
+            # پردازش متن خبر برای تشخیص زبان و خلاصه‌سازی
+            combined_text = f"{title}. {description}"
             try:
                 lang = detect(combined_text)
             except:
@@ -79,10 +85,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 except:
                     pass
 
-            # کپشن حرفه‌ای بدون لینک
+            # ساخت کپشن نهایی بدون لینک
             caption = (
                 f"📰 {name}\n"
-                f"🔸 {title}\n\n"
+                f"🔸 {title.strip()}\n\n"
                 f"📃 {summary.strip()}\n\n"
                 f"🖊 گزارش از {name} | @cafeshamss"
             )
@@ -99,11 +105,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 print(f"❗️ خطا در ارسال پیام از {name}: {e}")
 
     print("\n📊 آمار اجرای فعلی:")
-    print(f"🔹 تعداد کل منابع: {len(sources)}")
-    print(f"🔹 خبرهای جدید ارسال‌شده: {total_sent}")
+    print(f"🔹 تعداد منابع بررسی‌شده: {len(sources)}")
+    print(f"🔹 خبرهای ارسال‌شده: {total_sent}")
     print(f"🔹 خبرهای تکراری: {total_duplicates}")
-    print(f"🔹 جمع خبرهای بررسی‌شده: {total_items + total_duplicates}")
     if not any_news_sent:
-        print("⚠️ در این نوبت هیچ خبری ارسال نشد.")
+        print("⚠️ هیچ خبری ارسال نشد.")
 
     return sent_urls
