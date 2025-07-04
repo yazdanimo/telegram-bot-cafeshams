@@ -8,6 +8,7 @@ import asyncio
 
 translator = Translator()
 
+# منابع خبری
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
@@ -24,13 +25,16 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
         url = source.get("url")
 
         try:
-            rss = requests.get(url, timeout=10, headers=headers)
-            rss.raise_for_status()
+            response = requests.get(url, timeout=10, headers=headers)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as http_err:
+            print(f"❌ HTTP خطا از {name}: {http_err}")
+            continue
         except Exception as e:
             print(f"⚠️ خطا در دریافت RSS از {name}: {e}")
             continue
 
-        soup = BeautifulSoup(rss.content, "xml")
+        soup = BeautifulSoup(response.content, "xml")
         items = soup.find_all("item")
         print(f"\n📡 دریافت RSS از {name} → مجموع: {len(items)}")
 
@@ -41,17 +45,16 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
             title = item.title.text.strip() if item.title else "بدون عنوان"
             raw_html = item.description.text.strip() if item.description else ""
-
             image_url = extract_image_from_html(raw_html)
             full_text, _ = extract_full_content(link)
 
-            if not full_text or len(full_text.strip()) < 300:
+            if not full_text or len(full_text) < 300:
                 print(f"⚠️ رد شد: متن ناکافی یا ضعیف از {name}")
                 continue
 
-            garbage_keywords = ["فارسی", "العربية", "English", "تماس با ما", "تبلیغات", "آرشیو", "404", "Privacy", "فید خبر"]
-            if any(w in full_text for w in garbage_keywords):
-                print(f"⚠️ رد شد: قالب یا منو سایت از {name}")
+            ignore_keywords = ["فارسی", "العربية", "English", "تماس با ما", "تبلیغات", "آرشیو", "404", "Privacy", "فید خبر"]
+            if any(word in full_text for word in ignore_keywords):
+                print(f"⚠️ رد شد: محتوای قالب یا منو از {name}")
                 continue
 
             try:
@@ -63,7 +66,8 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 print(f"⚠️ ترجمه انجام نشد از {name}: {e}")
                 continue
 
-            summary = summarize_text(full_text, 400)
+            summary = summarize_text(full_text)
+
             caption = (
                 f"📡 خبرگزاری {name}\n"
                 f"{title}\n\n"
@@ -80,6 +84,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 sent_urls.add(link)
                 await asyncio.sleep(2)
             except Exception as e:
-                print(f"❗️ خطا در ارسال خبر از {name}: {e}")
+                print(f"❗️ خطا در ارسال از {name}: {e}")
 
     return sent_urls
