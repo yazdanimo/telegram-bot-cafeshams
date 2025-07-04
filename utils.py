@@ -9,7 +9,7 @@ def extract_image_from_html(html):
             return img["src"]
         return None
     except Exception as e:
-        print(f"❗️ خطا در استخراج تصویر از HTML: {e}")
+        print(f"❗️ خطا در استخراج تصویر: {e}")
         return None
 
 def extract_full_content(url):
@@ -19,12 +19,9 @@ def extract_full_content(url):
         candidates = soup.find_all(["p", "div"])
         full_text = " ".join(p.text for p in candidates if len(p.text.strip()) > 50)
         if len(full_text.strip()) < 100:
-            print(f"⚠️ محتوای ناکافی برای {url}")
+            print(f"⚠️ محتوای ناکافی از {url}")
             return "", []
-
-        media_tags = soup.find_all(["video", "iframe", "img"])
-        media_links = [tag.get("src") for tag in media_tags if tag.get("src")]
-        return full_text.strip(), media_links
+        return full_text.strip(), []
     except Exception as e:
         print(f"❗️ خطا در دریافت محتوای کامل از: {url} → {e}")
         return "", []
