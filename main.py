@@ -2,11 +2,11 @@ import asyncio
 from telegram.ext import ApplicationBuilder
 from fetch_news import fetch_and_send_news
 
-# 🔐 مقدار chat ID ثابت برای تست خصوصی (آیدی خودت)
-GROUP_CHAT_ID = 53266006
+# 🔐 توکن واقعی ربات از BotFather
+BOT_TOKEN = "7957685811:AAG_gzimHewoCWteEIf0mOcLDAnMgOu6Z3M"
 
-# 🔐 توکن ربات (به صورت مستقیم وارد کن یا از محیط بخون)
-BOT_TOKEN = "توکن_ربات_تو_اینجا"
+# 🆔 آیدی چت تستی (خودت یا گروه آزمایشی)
+GROUP_CHAT_ID = 53266006  # آیدی خودت برای تست
 
 # مجموعه لینک‌های ارسال‌شده
 sent_urls = set()
@@ -26,18 +26,18 @@ async def run_bot():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # تست ارسال پیام برای بررسی chat_id
+    # تست ارسال پیام اولیه
     try:
         await app.bot.send_message(chat_id=GROUP_CHAT_ID, text="✅ تست اتصال از کافه شمس ☕️🍪")
         print("📨 پیام تستی با موفقیت ارسال شد.")
     except Exception as e:
         print(f"🚫 خطا در ارسال تستی: {e}")
 
-    # اجرای job هر ۶۰ ثانیه
+    # اجرای job زمان‌بندی‌شده
     async def scheduler():
         while True:
             await scheduled_job(app.bot)
-            await asyncio.sleep(60)
+            await asyncio.sleep(60)  # اجرا هر ۶۰ ثانیه
 
     await app.initialize()
     await app.start()
