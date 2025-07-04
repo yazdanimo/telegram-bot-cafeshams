@@ -8,26 +8,45 @@ import asyncio
 
 translator = Translator()
 
-# 👇 بارگذاری منابع خبری دسته‌بندی‌شده
+# 👇 بارگذاری منابع با دسته‌بندی موضوعی
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
+# 📌 خلاصه‌سازی متن خبر
 def summarize_text(text, max_chars=400):
     paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 50]
     return "\n".join(paragraphs[:3])[:max_chars]
 
+# 🧠 اصلاح نام‌های خاص برای ترجمه دقیق‌تر
 def fix_named_entities(text):
     corrections = {
         "Araqchi": "عراقچی",
         "KSA": "عربستان سعودی",
         "Aliza Enati": "علیزا اناتی",
         "Faisal bin Farhan": "فیصل بن فرحان",
-        "Walid bin Abdulkarim Al-Khulaifi": "ولید بن عبدالکریم الخلیفی"
+        "Walid bin Abdulkarim Al-Khulaifi": "ولید بن عبدالکریم الخلیفی",
+        "Arash Rezavand": "آرش رضاوند",
+        "Sepahan": "سپاهان",
+        "Patrice Carteron": "پاتریس کارترون",
+        "Moharram Navidkia": "محرم نویدکیا",
+        "Umm Salal": "ام‌صلال"
     }
     for eng, fa in corrections.items():
         text = text.replace(eng, fa)
     return text
 
+# 🧹 پاک‌سازی عبارات تکراری یا بی‌معنا
+def clean_messy_phrases(text):
+    replacements = [
+        "در ۱۲ اوت در ۱۲ اوت",
+        "در تاریخ 12 اوت در 12 اوت",
+        "با پرداخت هزینه ناعادلانه"
+    ]
+    for phrase in replacements:
+        text = text.replace(phrase, "")
+    return text
+
+# ✂️ حذف جمله‌های ناقص یا کوتاه
 def clean_incomplete_sentences(text):
     lines = text.split("\n")
     cleaned = []
@@ -37,16 +56,19 @@ def clean_incomplete_sentences(text):
         cleaned.append(line.strip())
     return "\n".join(cleaned)
 
+# 🌐 ترجمه هوشمند با اصلاحات
 def translate_text(text):
     try:
         raw = fix_named_entities(text)
-        cleaned = clean_incomplete_sentences(raw)
+        messy = clean_messy_phrases(raw)
+        cleaned = clean_incomplete_sentences(messy)
         translated = translator.translate(cleaned, "Persian").result
         return translated
     except Exception as e:
         print(f"⚠️ خطا در ترجمه: {e}")
         return text[:400]
 
+# 📡 تابع اصلی دریافت و ارسال خبر
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = { "User-Agent": "Mozilla/5.0" }
 
