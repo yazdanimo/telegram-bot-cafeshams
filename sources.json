@@ -28,37 +28,13 @@
   { "name": "VOA News", "url": "https://www.voanews.com/api/zyrqovim$vmv" },
   { "name": "Washington Post", "url": "https://feeds.washingtonpost.com/rss/world" },
   { "name": "Bloomberg", "url": "https://www.bloomberg.com/feed/podcast/etf-report.xml" },
-  { "name": "Forbes", "url": "https://www.forbes.com/news/feed/" }
-  {
-    "name": "Foreign Affairs",
-    "url": "https://www.foreignaffairs.com/rss.xml"
-  },
-  {
-    "name": "Axios",
-    "url": "https://www.axios.com/rss"
-  },
-]
-    "name": "The Atlantic",
-    "url": "https://www.theatlantic.com/feed/all"
-  },
-  {
-    "name": "Brookings Institution",
-    "url": "https://www.brookings.edu/feed"
-  },
-  {
-    "name": "Carnegie Endowment",
-    "url": "https://carnegieendowment.org/rss"
-  },
-  {
-    "name": "Council on Foreign Relations (CFR)",
-    "url": "https://www.cfr.org/rss.xml"
-  },
-  {
-    "name": "RAND Corporation",
-    "url": "https://www.rand.org/rss.xml"
-  },
-  {
-    "name": "Chatham House",
-    "url": "https://www.chathamhouse.org/rss.xml"
-  }
+  { "name": "Forbes", "url": "https://www.forbes.com/news/feed/" },
+  { "name": "Foreign Affairs", "url": "https://www.foreignaffairs.com/rss.xml" },
+  { "name": "Axios", "url": "https://www.axios.com/rss" },
+  { "name": "The Atlantic", "url": "https://www.theatlantic.com/feed/all" },
+  { "name": "Brookings Institution", "url": "https://www.brookings.edu/feed" },
+  { "name": "Carnegie Endowment", "url": "https://carnegieendowment.org/rss" },
+  { "name": "Council on Foreign Relations (CFR)", "url": "https://www.cfr.org/rss.xml" },
+  { "name": "RAND Corporation", "url": "https://www.rand.org/rss.xml" },
+  { "name": "Chatham House", "url": "https://www.chathamhouse.org/rss.xml" }
 ]
