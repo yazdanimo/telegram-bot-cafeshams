@@ -11,6 +11,7 @@ translator = Translator()
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
+# اصلاح اسامی خاص و غلط ترجمه‌ها
 def fix_named_entities(text):
     corrections = {
         "Araqchi": "عراقچی",
@@ -28,6 +29,7 @@ def fix_named_entities(text):
         text = text.replace(eng, fa)
     return text
 
+# حذف عبارت‌های تکراری یا ناقص
 def clean_messy_phrases(text):
     replacements = [
         "در ۱۲ اوت در ۱۲ اوت",
@@ -38,10 +40,12 @@ def clean_messy_phrases(text):
         text = text.replace(phrase, "")
     return text
 
+# تشخیص جمله ناقص
 def is_incomplete(text):
     bad_endings = ["...", "،", "بین دو", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
     return any(text.strip().endswith(ending) for ending in bad_endings)
 
+# حذف جمله‌های ناقص از متن
 def clean_incomplete_sentences(text):
     lines = text.split("\n")
     cleaned = []
@@ -51,6 +55,7 @@ def clean_incomplete_sentences(text):
         cleaned.append(line.strip())
     return "\n".join(cleaned)
 
+# حذف جملهٔ آخر اگر ناقص بود
 def fix_cutoff_translation(text):
     lines = text.split("\n")
     if lines and is_incomplete(lines[-1]):
@@ -58,6 +63,7 @@ def fix_cutoff_translation(text):
         return "\n".join(lines[:-1])
     return text
 
+# ترجمه کامل متن
 def translate_text(text):
     try:
         raw = fix_named_entities(text)
@@ -69,11 +75,20 @@ def translate_text(text):
         print(f"⚠️ خطا در ترجمه: {e}")
         return text[:400]
 
+# بررسی کیفیت اولیه متن
 def assess_content_quality(text):
     paragraph_count = len([p for p in text.split("\n") if len(p.strip()) > 40])
     character_count = len(text)
     return character_count >= 300 and paragraph_count >= 2
 
+# استخراج فقط پاراگراف اول برای نمایش
+def extract_intro_paragraph(text):
+    for para in text.split("\n"):
+        if len(para.strip()) > 50:
+            return para.strip()
+    return text.strip()[:300]
+
+# دریافت و ارسال خبرها
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -126,10 +141,12 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 continue
 
             clean_text = clean_incomplete_sentences(full_text)
+            intro = extract_intro_paragraph(clean_text)
+
             caption = (
                 f"📡 خبرگزاری {name} ({category})\n"
                 f"{title}\n\n"
-                f"{clean_text.strip()}\n\n"
+                f"{intro}\n\n"
                 f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
             )
 
