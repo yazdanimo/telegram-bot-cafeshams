@@ -20,7 +20,8 @@ def summarize_text(text, sentence_count=4):
         summary = LsaSummarizer()(parser.document, sentence_count)
         summarized = " ".join(str(sentence) for sentence in summary).strip()
         return summarized if len(summarized) > 100 else text[:400]
-    except:
+    except Exception as e:
+        print(f"⚠️ خطا در خلاصه‌سازی متن: {e}")
         return text[:400]
 
 async def fetch_and_send_news(bot, chat_id, sent_urls):
@@ -32,14 +33,14 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             rss = requests.get(url, timeout=10)
             rss.raise_for_status()
         except Exception as e:
-            print(f"⚠️ خطا در دریافت منبع: {name} → {e}")
+            print(f"⚠️ خطا در دریافت RSS منبع {name}: {e}")
             continue
 
         soup = BeautifulSoup(rss.content, "xml")
         items = soup.find_all("item")
         print(f"\n📡 دریافت RSS از {name} → مجموع: {len(items)}")
 
-        for item in items[:5]:  # تعداد خبر تستی
+        for item in items[:5]:
             link = item.link.text.strip() if item.link else ""
             if not link or link in sent_urls:
                 continue
@@ -48,12 +49,21 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             raw_html = item.description.text.strip() if item.description else ""
 
             image_url = extract_image_from_html(raw_html)
-            full_text, additional_media = extract_full_content(link)
+            full_text, _ = extract_full_content(link)
 
-            lang = detect(title + full_text) if full_text else "unknown"
-            if lang == "en":
-                title = translator.translate(title, "Persian").result
-                full_text = translator.translate(full_text, "Persian").result
+            # رد کردن اخبار با محتوای ضعیف
+            if not full_text or len(full_text.strip()) < 100:
+                print(f"⚠️ رد شد: محتوای ناکافی از {name}")
+                continue
+
+            try:
+                lang = detect(title + full_text)
+                if lang == "en":
+                    title = translator.translate(title, "Persian").result
+                    full_text = translator.translate(full_text, "Persian").result
+            except Exception as e:
+                print(f"⚠️ خطا در ترجمه یا تشخیص زبان خبر {name}: {e}")
+                continue
 
             summary = summarize_text(full_text, 4)
             caption = (
@@ -71,6 +81,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 print(f"✅ خبر ارسال شد از {name}")
                 sent_urls.add(link)
             except Exception as e:
-                print(f"❗️ خطا در ارسال خبر {name}: {e}")
+                print(f"❗️ خطا در ارسال خبر از {name}: {e}")
 
     return sent_urls
