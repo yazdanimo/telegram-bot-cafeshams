@@ -10,12 +10,12 @@ import json
 import nltk
 import asyncio
 
-# 📥 دانلود tokenizer مورد نیاز برای خلاصه‌سازی
+# 🧠 آماده‌سازی NLTK برای خلاصه‌سازی
 nltk.download("punkt")
 
 translator = Translator()
 
-# 📚 بارگذاری منابع خبری از فایل JSON
+# 📚 بارگذاری منابع خبری
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
@@ -45,7 +45,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
         items = soup.find_all("item")
         print(f"\n📡 دریافت RSS از {name} → مجموع: {len(items)}")
 
-        for item in items[:3]:  # محدود به ۳ خبر برای کنترل flood
+        for item in items[:3]:  # محدود کردن به ۳ خبر برای کنترل flood
             link = item.link.text.strip() if item.link else ""
             if not link or link in sent_urls:
                 continue
@@ -56,10 +56,15 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             image_url = extract_image_from_html(raw_html)
             full_text, _ = extract_full_content(link)
 
-            if not full_text or len(full_text.strip()) < 100:
-                print(f"⚠️ رد شد: محتوای ناکافی از {name}")
+            # رد خبرهایی با متن ناقص یا غیرخبری
+            if not full_text or len(full_text.strip()) < 300:
+                print(f"⚠️ رد شد: محتوای ضعیف یا غیرخبری از {name}")
+                continue
+            if any(x in full_text for x in ["Languages", "Privacy Policy", "404", "کد استاتوس", "صفحه در دسترس نیست"]):
+                print(f"⚠️ رد شد: محتوای مشکوک یا خطای HTML از {name}")
                 continue
 
+            # ترجمه اگر خبر انگلیسی باشد
             try:
                 lang = detect(title + full_text)
                 if lang == "en":
@@ -70,6 +75,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 continue
 
             summary = summarize_text(full_text, 4)
+
             caption = (
                 f"📡 خبرگزاری {name}\n"
                 f"{title}\n\n"
@@ -84,7 +90,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     await bot.send_message(chat_id=chat_id, text=caption[:4096])
                 print(f"✅ خبر ارسال شد از {name}")
                 sent_urls.add(link)
-                await asyncio.sleep(2)  # فاصله بین ارسال‌ها برای جلوگیری از Flood
+                await asyncio.sleep(2)  # فاصله ۲ ثانیه برای جلوگیری از flood
             except Exception as e:
                 print(f"❗️ خطا در ارسال خبر از {name}: {e}")
 
