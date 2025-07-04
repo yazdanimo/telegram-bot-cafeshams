@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from langdetect import detect
 from translatepy import Translator
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from utils import extract_full_content, extract_image_from_html
 import json
 import asyncio
@@ -11,7 +12,6 @@ translator = Translator()
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-# اصلاح اسامی خاص و عباراتی که ترجمه‌شون غلط می‌شه
 def fix_named_entities(text):
     corrections = {
         "Araqchi": "عراقچی",
@@ -23,7 +23,6 @@ def fix_named_entities(text):
         text = text.replace(eng, fa)
     return text
 
-# حذف عباراتی که معنی ندارن یا تکراری هستن
 def clean_messy_phrases(text):
     replacements = [
         "در ۱۲ اوت در ۱۲ اوت",
@@ -34,12 +33,10 @@ def clean_messy_phrases(text):
         text = text.replace(phrase, "")
     return text
 
-# تشخیص جمله‌های ناقص
 def is_incomplete(text):
     bad_endings = ["...", "،", "بین دو", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
     return any(text.strip().endswith(ending) for ending in bad_endings)
 
-# حذف جمله‌های ناقص از متن
 def clean_incomplete_sentences(text):
     lines = text.split("\n")
     cleaned = []
@@ -49,21 +46,12 @@ def clean_incomplete_sentences(text):
         cleaned.append(line.strip())
     return "\n".join(cleaned)
 
-# حذف جملهٔ آخر اگر ناقص بود
 def fix_cutoff_translation(text):
     lines = text.split("\n")
     if lines and is_incomplete(lines[-1]):
         return "\n".join(lines[:-1])
     return text
 
-# استخراج پاراگراف اول کامل، و ترجمه دقیق
-def extract_intro_paragraph(text):
-    for para in text.split("\n"):
-        if len(para.strip()) > 60 and not is_incomplete(para):
-            return para.strip()
-    return text.strip()[:300]
-
-# ترجمه با اصلاحات و حذف جمله‌های خراب
 def translate_text(text):
     try:
         raw = fix_named_entities(text)
@@ -75,13 +63,17 @@ def translate_text(text):
         print(f"⚠️ خطا در ترجمه: {e}")
         return text[:400]
 
-# بررسی کیفیت کلی متن
 def assess_content_quality(text):
     paragraph_count = len([p for p in text.split("\n") if len(p.strip()) > 40])
     character_count = len(text)
     return character_count >= 300 and paragraph_count >= 2
 
-# تابع اصلی دریافت و ارسال خبر
+def extract_intro_paragraph(text):
+    for para in text.split("\n"):
+        if len(para.strip()) > 60 and not is_incomplete(para):
+            return para.strip()
+    return text.strip()[:300]
+
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -89,7 +81,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         name = source.get("name")
         url = source.get("url")
         category = source.get("category", "news")
-        content_type = source.get("content_type", "text")
 
         if category_filter and category != category_filter:
             continue
@@ -143,11 +134,15 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
             )
 
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📖 ادامه خبر", url=link)]
+            ])
+
             try:
                 if image_url:
-                    await bot.send_photo(chat_id=chat_id, photo=image_url, caption=caption[:1024])
+                    await bot.send_photo(chat_id=chat_id, photo=image_url, caption=caption[:1024], reply_markup=keyboard)
                 else:
-                    await bot.send_message(chat_id=chat_id, text=caption[:4096])
+                    await bot.send_message(chat_id=chat_id, text=caption[:4096], reply_markup=keyboard)
                 print(f"✅ خبر ارسال شد از {name}")
                 sent_urls.add(link)
                 await asyncio.sleep(2)
