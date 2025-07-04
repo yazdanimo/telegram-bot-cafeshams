@@ -8,27 +8,30 @@ import asyncio
 
 translator = Translator()
 
-# بارگذاری منابع خبری
+# بارگذاری منابع خبری با دسته‌بندی
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
 def summarize_text(text, max_chars=400):
     paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 50]
-    joined = "\n".join(paragraphs[:3])
-    return joined[:max_chars]
+    return "\n".join(paragraphs[:3])[:max_chars]
 
-async def fetch_and_send_news(bot, chat_id, sent_urls):
+async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = { "User-Agent": "Mozilla/5.0" }
 
     for source in sources:
         name = source.get("name")
         url = source.get("url")
+        category = source.get("category", "news")
 
-        # دریافت RSS با مدیریت خطا
+        # اگر کاربر بخواد فقط منابع خاصی رو بخونه
+        if category_filter and category != category_filter:
+            continue
+
         try:
             response = requests.get(url, timeout=10, headers=headers)
             response.raise_for_status()
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"❌ خطا در دریافت RSS از {name}: {e}")
             continue
 
@@ -44,19 +47,17 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             title = item.title.text.strip() if item.title else "بدون عنوان"
             raw_html = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(raw_html)
-
-            # استخراج متن کامل
             full_text, _ = extract_full_content(link)
-            if not full_text or len(full_text.strip()) < 300:
+
+            if not full_text or len(full_text) < 300:
                 print(f"⚠️ رد شد: متن ناکافی یا ضعیف از {name}")
                 continue
 
-            garbage_keywords = ["فارسی", "العربية", "English", "تماس با ما", "تبلیغات", "آرشیو", "404", "Privacy", "فید خبر"]
+            garbage_keywords = ["تماس با ما", "فید خبر", "Privacy", "آرشیو", "404", "العربية"]
             if any(word in full_text for word in garbage_keywords):
                 print(f"⚠️ رد شد: محتوای قالب یا منو از {name}")
                 continue
 
-            # ترجمه خبر انگلیسی
             try:
                 lang = detect(title + full_text)
                 if lang == "en":
@@ -69,7 +70,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             summary = summarize_text(full_text)
 
             caption = (
-                f"📡 خبرگزاری {name}\n"
+                f"📡 خبرگزاری {name} ({category})\n"
                 f"{title}\n\n"
                 f"{summary.strip()}\n\n"
                 f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
