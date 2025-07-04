@@ -10,12 +10,12 @@ import json
 import nltk
 import asyncio
 
-# 🔧 دانلود tokenizer مورد نیاز برای خلاصه‌سازی
+# 📥 دانلود tokenizer مورد نیاز برای خلاصه‌سازی
 nltk.download("punkt")
 
 translator = Translator()
 
-# 📚 بارگذاری منابع خبری
+# 📚 بارگذاری منابع خبری از فایل JSON
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
@@ -66,15 +66,15 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     title = translator.translate(title, "Persian").result
                     full_text = translator.translate(full_text, "Persian").result
             except Exception as e:
-                print(f"⚠️ خطا در ترجمه یا تشخیص زبان: {e}")
+                print(f"⚠️ خطا در ترجمه یا تشخیص زبان خبر {name}: {e}")
                 continue
 
             summary = summarize_text(full_text, 4)
             caption = (
-                f"📰 منبع: {name}\n"
-                f"🔸 {title}\n\n"
-                f"📃 {summary.strip()}\n\n"
-                f"🖊 گزارش از {name} | 🆔 @cafeshamss     کافه شمس ☕️🍪"
+                f"📡 خبرگزاری {name}\n"
+                f"{title}\n\n"
+                f"{summary.strip()}\n\n"
+                f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
             )
 
             try:
@@ -84,8 +84,8 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     await bot.send_message(chat_id=chat_id, text=caption[:4096])
                 print(f"✅ خبر ارسال شد از {name}")
                 sent_urls.add(link)
-                await asyncio.sleep(2)  # ⏳ فاصله بین ارسال پیام‌ها
+                await asyncio.sleep(2)  # فاصله بین ارسال‌ها برای جلوگیری از Flood
             except Exception as e:
-                print(f"❗️ خطا در ارسال از {name}: {e}")
+                print(f"❗️ خطا در ارسال خبر از {name}: {e}")
 
     return sent_urls
