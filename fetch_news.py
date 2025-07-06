@@ -1,4 +1,63 @@
+import requests
+from bs4 import BeautifulSoup
+from langdetect import detect
+from translatepy import Translator
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+from utils import extract_full_content, extract_image_from_html
+import json
+import asyncio
 import datetime
+from urllib.parse import urlparse
+
+translator = Translator()
+dead_sources = set()
+weak_sources = set()
+
+with open("sources.json", "r", encoding="utf-8") as f:
+    sources = json.load(f)
+
+blocked_domains = [
+    "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
+    "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
+]
+
+def shorten_link(url):
+    try:
+        api = f"https://is.gd/create.php?format=simple&url={url}"
+        res = requests.get(api, timeout=5)
+        return res.text.strip() if res.status_code == 200 else url
+    except:
+        return url
+
+def is_incomplete(text):
+    bad = ["...", "،", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
+    return any(text.strip().endswith(e) for e in bad)
+
+def clean_incomplete_sentences(text):
+    lines = text.split("\n")
+    return "\n".join([l.strip() for l in lines if len(l.strip()) >= 30 and not is_incomplete(l)])
+
+def fix_cutoff_translation(text):
+    lines = text.split("\n")
+    return "\n".join(lines[:-1]) if lines and is_incomplete(lines[-1]) else text
+
+def translate_text(text):
+    try:
+        clean = clean_incomplete_sentences(text)
+        translated = translator.translate(clean, "Persian").result
+        return fix_cutoff_translation(translated)
+    except:
+        return text[:400]
+
+def extract_intro_paragraph(text):
+    for para in text.split("\n"):
+        if len(para.strip()) > 60 and not is_incomplete(para):
+            return para.strip()
+    return text.strip()[:300]
+
+def assess_content_quality(text):
+    paras = [p for p in text.split("\n") if len(p.strip()) > 40]
+    return len(text) >= 300 and len(paras) >= 2
 
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -109,7 +168,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             "failed": failed
         }
 
-    # ذخیره فایل گزارش سلامت منابع
     date_key = datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         with open("source_health.json", "w", encoding="utf-8") as f:
