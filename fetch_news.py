@@ -16,11 +16,16 @@ weak_sources = set()
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-with open("source_profiles.json", "r", encoding="utf-8") as f:
-    source_profiles = json.load(f)
+try:
+    with open("source_profiles.json", "r", encoding="utf-8") as f:
+        source_profiles = json.load(f)
+except:
+    source_profiles = {}
 
-blocked_domains = ["foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
-                   "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"]
+blocked_domains = [
+    "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
+    "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
+]
 
 def shorten_link(url):
     try:
@@ -47,7 +52,8 @@ def translate_text(text):
         clean = clean_incomplete_sentences(text)
         translated = translator.translate(clean, "Persian").result
         return fix_cutoff_translation(translated)
-    except:
+    except Exception as e:
+        print(f"❌ خطا در ترجمه متن: {e}")
         return text[:400]
 
 def extract_intro_paragraph(text):
@@ -69,7 +75,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         url = source.get("url")
         category = source.get("category", "news")
         profile = source_profiles.get(name, {})
-
         fallback_mode = profile.get("mode") == "fallback"
         title_only_mode = profile.get("mode") == "title_only"
 
@@ -104,13 +109,15 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 continue
 
             title = item.title.text.strip() if item.title else "بدون عنوان"
-            raw_html = item.description.text.strip() if item.description else ""
+            raw_html = item.description.text.strip() if item.description and item.description.text else ""
             image_url = extract_image_from_html(raw_html)
             video_url = extract_video_link(raw_html)
 
             full_text, _ = extract_full_content(link)
+
             if "404" in full_text or not full_text:
                 short_link = shorten_link(link)
+
                 if title_only_mode:
                     caption = f"📡 خبر از {name}\n🎙️ {title}\n🔗 {short_link}\n🆔 @cafeshamss"
                     try:
@@ -121,8 +128,9 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                     except:
                         print(f"❌ ارسال تیتر شکست خورد از {name}")
                     continue
+
                 elif fallback_mode:
-                    intro = item.description.text.strip()[:300] if item.description else ""
+                    intro = raw_html[:300] if raw_html else f"📌 لینک خبر: {short_link}"
                     caption = f"📡 خبر از {name}\n🎙️ {title}\n📝 {intro}\n🔗 {short_link}\n🆔 @cafeshamss"
                     try:
                         await bot.send_message(chat_id=chat_id, text=caption[:4096])
@@ -132,6 +140,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                     except:
                         print(f"❌ ارسال fallback شکست خورد از {name}")
                     continue
+
                 else:
                     print(f"❌ رد کامل از {name}")
                     failed += 1
@@ -143,12 +152,24 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 continue
 
             try:
-                lang = detect(title + full_text)
+                full_input = (title + " " + full_text).strip()
+                lang = detect(full_input)
+
                 if lang == "en":
-                    title = translate_text(title)
-                    full_text = translate_text(full_text)
-            except:
-                pass
+                    print(f"🌐 تشخیص متن انگلیسی از {name}")
+                    translated_title = translate_text(title)
+                    translated_text = translate_text(full_text)
+
+                    if translated_title and translated_text:
+                        title = translated_title.strip()
+                        full_text = translated_text.strip()
+                        print(f"✅ ترجمه موفق از {name}")
+                    else:
+                        print(f"⚠️ ترجمه ناقص از {name}")
+                else:
+                    print(f"🌐 متن {name} به زبان {lang}")
+            except Exception as e:
+                print(f"❌ خطا در ترجمه یا تشخیص زبان از {name}: {e}")
 
             clean_text = clean_incomplete_sentences(full_text)
             intro = extract_intro_paragraph(clean_text)
@@ -196,4 +217,4 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         failed = stats.get("failed", 0)
         summary.append(f"{name}: ✅ {success} | ❌ {failed}")
 
-    await bot.send_message(chat_id=chat_id, text="\n".join(summary)[:4096])
+    await bot.send_message(chat_id=chat_id, text="\n".join(summary)
