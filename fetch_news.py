@@ -8,51 +8,30 @@ import json
 import asyncio
 
 translator = Translator()
+dead_sources = set()
+weak_sources = set()
 
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-def fix_named_entities(text):
-    fixes = {
-        "Boston Dynamics": "بوستون داینامیکس",
-        "Santa Maria de Garoña": "سانتا ماریا دی گارونیا"
-    }
-    for en, fa in fixes.items():
-        text = text.replace(en, fa)
-    return text
-
-def clean_messy_phrases(text):
-    for phrase in ["در ۱۲ اوت در ۱۲ اوت", "با پرداخت هزینه ناعادلانه"]:
-        text = text.replace(phrase, "")
-    return text
-
 def is_incomplete(text):
-    bad_endings = ["...", "،", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
-    return any(text.strip().endswith(end) for end in bad_endings)
+    ends = ["...", "،", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
+    return any(text.strip().endswith(e) for e in ends)
 
 def clean_incomplete_sentences(text):
-    lines = text.split("\n")
-    return "\n".join([l.strip() for l in lines if len(l.strip()) > 30 and not is_incomplete(l)])
+    return "\n".join([line.strip() for line in text.split("\n") if len(line.strip()) > 30 and not is_incomplete(line)])
 
 def fix_cutoff_translation(text):
     lines = text.split("\n")
-    if lines and is_incomplete(lines[-1]):
-        return "\n".join(lines[:-1])
-    return text
+    return "\n".join(lines[:-1]) if lines and is_incomplete(lines[-1]) else text
 
 def translate_text(text):
     try:
-        raw = fix_named_entities(text)
-        cleaned = clean_incomplete_sentences(clean_messy_phrases(raw))
+        cleaned = clean_incomplete_sentences(text)
         translated = translator.translate(cleaned, "Persian").result
         return fix_cutoff_translation(translated)
-    except Exception as e:
-        print(f"⚠️ خطا در ترجمه: {e}")
+    except:
         return text[:400]
-
-def assess_content_quality(text):
-    paras = [p for p in text.split("\n") if len(p.strip()) > 40]
-    return len(text) >= 300 and len(paras) >= 2
 
 def extract_intro_paragraph(text):
     for para in text.split("\n"):
@@ -60,9 +39,13 @@ def extract_intro_paragraph(text):
             return para.strip()
     return text.strip()[:300]
 
-# 🔄 تابع اصلی دریافت و ارسال خبر
+def assess_content_quality(text):
+    paras = [p for p in text.split("\n") if len(p.strip()) > 40]
+    return len(text) >= 300 and len(paras) >= 2
+
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
+    source_fail_count = {}
 
     for source in sources:
         name = source.get("name")
@@ -73,15 +56,18 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             continue
 
         try:
-            response = requests.get(url, timeout=10, headers=headers)
-            response.raise_for_status()
-        except Exception as e:
-            print(f"❌ خطا در RSS {name}: {e}")
+            res = requests.get(url, timeout=10, headers=headers)
+            res.raise_for_status()
+        except:
+            print(f"❌ خطا در RSS {name}")
+            dead_sources.add(name)
             continue
 
-        soup = BeautifulSoup(response.content, "xml")
+        soup = BeautifulSoup(res.content, "xml")
         items = soup.find_all("item")
-        print(f"\n📡 دریافت RSS از {name} → مجموع: {len(items)}")
+        print(f"\n📡 RSS {name} → {len(items)} خبر")
+
+        failed = 0
 
         for item in items[:5]:
             link = item.link.text.strip() if item.link else ""
@@ -93,12 +79,20 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             image_url = extract_image_from_html(raw_html)
             full_text, _ = extract_full_content(link)
 
-            if not assess_content_quality(full_text):
-                print(f"⚠️ رد شد: متن ضعیف از {name}")
+            if "404" in full_text or not full_text:
+                print(f"❌ خطای دریافت محتوا از {link}")
+                dead_sources.add(name)
+                failed += 1
                 continue
 
-            if any(word in full_text for word in ["تماس با ما", "Privacy", "404", "فید خبر"]):
-                print(f"⚠️ رد شد: محتوای قالب یا تبلیغ از {name}")
+            if not assess_content_quality(full_text):
+                print(f"⚠️ رد شد: متن ضعیف از {name}")
+                failed += 1
+                continue
+
+            if any(x in full_text for x in ["تماس با ما", "فید خبر", "Privacy", "آرشیو", "404"]):
+                print(f"⚠️ حذف محتوا قالب از {name}")
+                failed += 1
                 continue
 
             try:
@@ -106,23 +100,14 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 if lang == "en":
                     title = translate_text(title)
                     full_text = translate_text(full_text)
-            except Exception as e:
-                print(f"⚠️ ترجمه ناموفق از {name}: {e}")
-                continue
+            except:
+                pass
 
             clean_text = clean_incomplete_sentences(full_text)
             intro = extract_intro_paragraph(clean_text)
 
-            caption = (
-                f"📡 خبرگزاری {name} ({category})\n"
-                f"{title}\n\n"
-                f"{intro}\n\n"
-                f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
-            )
-
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📖 ادامه خبر", url=link)]
-            ])
+            caption = f"📡 خبرگزاری {name} ({category})\n{title}\n\n{intro}\n\n🆔 @cafeshamss\nکافه شمس ☕️🍪"
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📖 ادامه خبر", url=link)]])
 
             try:
                 if image_url:
@@ -133,7 +118,13 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 sent_urls.add(link)
                 await asyncio.sleep(2)
             except Exception as e:
-                print(f"❗️ خطا در ارسال پیام از {name}: {e}")
+                print(f"❗️ خطا در ارسال پیام: {e}")
 
-    print(f"\n📊 مجموع خبرهای ارسال‌شده: {len(sent_urls)}")
-    return sent_urls
+        if failed >= 4:
+            weak_sources.add(name)
+
+    print(f"\n📊 مجموع ارسال‌شده‌ها: {len(sent_urls)}")
+    if dead_sources:
+        print(f"🗑 منابع مرده: {', '.join(dead_sources)}")
+    if weak_sources:
+        print(f"⚠️ منابع ضعیف: {', '.join(weak_sources)}")
