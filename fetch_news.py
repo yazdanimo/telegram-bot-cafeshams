@@ -12,29 +12,26 @@ from urllib.parse import urlparse
 translator = Translator()
 BRAND_TAG = "\n\n🆔 @cafeshamss\nکافه شمس ☕️🍪"
 
-# بارگذاری منابع خبری
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-# بارگذاری پروفایل منابع (fallback / title_only)
 try:
     with open("source_profiles.json", "r", encoding="utf-8") as f:
         source_profiles = json.load(f)
 except:
     source_profiles = {}
 
-# بارگذاری لینک‌های خراب از اجراهای قبل
 try:
     with open("broken_links.json", "r", encoding="utf-8") as f:
         broken_links = json.load(f)
 except:
     broken_links = {}
 
-# دامنه‌هایی که محتواشون محافظت‌شده یا قابل استخراج نیست
 blocked_domains = [
     "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
     "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
-]def shorten_link(url):
+]
+def shorten_link(url):
     try:
         api = f"https://is.gd/create.php?format=simple&url={url}"
         res = requests.get(api, timeout=5)
@@ -71,7 +68,8 @@ def extract_intro_paragraph(text):
 
 def assess_content_quality(text):
     paragraphs = [p for p in text.split("\n") if len(p.strip()) > 40]
-    return len(text) >= 300 and len(paragraphs) >= 2async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
+    return len(text) >= 300 and len(paragraphs) >= 2
+    async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
     health_report = {}
 
@@ -91,7 +89,7 @@ def assess_content_quality(text):
             res.raise_for_status()
         except:
             print(f"❌ خطا در RSS {name}")
-            health_report[name] = { "total": 0, "success": 0, "failed": 1 }
+            health_report[name] = {"total": 0, "success": 0, "failed": 1}
             continue
 
         soup = BeautifulSoup(res.content, "xml")
@@ -110,7 +108,11 @@ def assess_content_quality(text):
             if any(blocked in domain or blocked in link for blocked in blocked_domains):
                 print(f"🚫 لینک مسدود: {link}")
                 failed += 1
-                broken_links[link] = { "source": name, "status": "blocked", "date": str(datetime.datetime.now()) }
+                broken_links[link] = {
+                    "source": name,
+                    "status": "blocked",
+                    "date": str(datetime.datetime.now())
+                }
                 continue
 
             title = item.title.text.strip() if item.title else "بدون عنوان"
@@ -121,7 +123,11 @@ def assess_content_quality(text):
             short_link = shorten_link(link)
 
             if "404" in full_text or not full_text:
-                broken_links[link] = { "source": name, "status": "404", "date": str(datetime.datetime.now()) }
+                broken_links[link] = {
+                    "source": name,
+                    "status": "404",
+                    "date": str(datetime.datetime.now())
+                }
 
                 if title_only_mode:
                     caption = f"📡 خبر از {name}\n🎙️ {title}\n🔗 {short_link}{BRAND_TAG}"
@@ -129,7 +135,6 @@ def assess_content_quality(text):
                     sent_urls.add(link)
                     success_count += 1
                     continue
-
                 elif fallback_mode:
                     intro = raw_html[:300] if raw_html else f"📌 لینک خبر: {short_link}"
                     caption = f"📡 خبر از {name}\n🎙️ {title}\n📝 {intro}\n🔗 {short_link}{BRAND_TAG}"
@@ -137,7 +142,6 @@ def assess_content_quality(text):
                     sent_urls.add(link)
                     success_count += 1
                     continue
-
                 else:
                     print(f"❌ رد کامل از {name}")
                     failed += 1
@@ -146,7 +150,11 @@ def assess_content_quality(text):
             if not assess_content_quality(full_text):
                 print(f"⚠️ متن ضعیف از {name}")
                 failed += 1
-                broken_links[link] = { "source": name, "status": "weak", "date": str(datetime.datetime.now()) }
+                broken_links[link] = {
+                    "source": name,
+                    "status": "weak",
+                    "date": str(datetime.datetime.now())
+                }
                 continue
 
             try:
@@ -179,7 +187,8 @@ def assess_content_quality(text):
             "total": len(items),
             "success": success_count,
             "failed": failed
-        }    # ذخیره فایل broken_links.json
+        }
+            # ذخیره لینک‌های خراب برای جلوگیری از ارسال تکراری
     try:
         with open("broken_links.json", "w", encoding="utf-8") as f:
             json.dump(broken_links, f, ensure_ascii=False, indent=2)
@@ -206,8 +215,8 @@ def assess_content_quality(text):
     except Exception as e:
         print(f"❌ خطا در ذخیره source_dashboard.html: {e}")
 
-    # ارسال گزارش نهایی داخل تلگرام
-    summary = ["📊 گزارش منابع:\n"]
+    # ارسال خلاصه عملکرد منابع به تلگرام
+    summary = ["📊 گزارش عملکرد منابع:\n"]
     for name, stats in health_report.items():
         success = stats.get("success", 0)
         failed = stats.get("failed", 0)
