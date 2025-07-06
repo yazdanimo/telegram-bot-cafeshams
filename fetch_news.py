@@ -217,4 +217,4 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         failed = stats.get("failed", 0)
         summary.append(f"{name}: ✅ {success} | ❌ {failed}")
 
-    await bot.send_message(chat_id=chat_id, text="\n".join(summary)
+    await bot.send_message(chat_id=chat_id, text="\n".join(summary))
