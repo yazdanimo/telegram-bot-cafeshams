@@ -15,11 +15,12 @@ with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
 def is_incomplete(text):
-    ends = ["...", "،", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
-    return any(text.strip().endswith(e) for e in ends)
+    bad = ["...", "،", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
+    return any(text.strip().endswith(e) for e in bad)
 
 def clean_incomplete_sentences(text):
-    return "\n".join([line.strip() for line in text.split("\n") if len(line.strip()) > 30 and not is_incomplete(line)])
+    lines = text.split("\n")
+    return "\n".join([l.strip() for l in lines if len(l.strip()) >= 30 and not is_incomplete(l)])
 
 def fix_cutoff_translation(text):
     lines = text.split("\n")
@@ -27,8 +28,8 @@ def fix_cutoff_translation(text):
 
 def translate_text(text):
     try:
-        cleaned = clean_incomplete_sentences(text)
-        translated = translator.translate(cleaned, "Persian").result
+        clean = clean_incomplete_sentences(text)
+        translated = translator.translate(clean, "Persian").result
         return fix_cutoff_translation(translated)
     except:
         return text[:400]
@@ -45,7 +46,6 @@ def assess_content_quality(text):
 
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
-    source_fail_count = {}
 
     for source in sources:
         name = source.get("name")
@@ -69,7 +69,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
 
         failed = 0
 
-        for item in items[:5]:
+        for item in items[:8]:
             link = item.link.text.strip() if item.link else ""
             if not link or link in sent_urls:
                 continue
@@ -77,10 +77,25 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             title = item.title.text.strip() if item.title else "بدون عنوان"
             raw_html = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(raw_html)
-            full_text, _ = extract_full_content(link)
 
+            # 📷 رد خودکار لینک‌های گالری یا تصویری
+            if any(x in link.lower() for x in ["/photo/", "/gallery/", "/picture/"]):
+                if image_url:
+                    msg = f"🖼 گزارش تصویری از {name}\n🎙 {title}\n📖 ادامه گالری: {link}\n🆔 @cafeshamss"
+                    try:
+                        await bot.send_photo(chat_id=chat_id, photo=image_url, caption=msg[:1024])
+                        sent_urls.add(link)
+                        print(f"📸 ارسال تصویری گالری از {name}")
+                        await asyncio.sleep(2)
+                    except Exception as e:
+                        print(f"❗️ خطا در ارسال تصویر گالری: {e}")
+                else:
+                    print(f"⚠️ لینک گالری بدون تصویر معتبر: {link}")
+                continue
+
+            full_text, _ = extract_full_content(link)
             if "404" in full_text or not full_text:
-                print(f"❌ خطای دریافت محتوا از {link}")
+                print(f"❌ خطا در دریافت محتوا از: {link}")
                 dead_sources.add(name)
                 failed += 1
                 continue
@@ -91,7 +106,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 continue
 
             if any(x in full_text for x in ["تماس با ما", "فید خبر", "Privacy", "آرشیو", "404"]):
-                print(f"⚠️ حذف محتوا قالب از {name}")
+                print(f"⚠️ رد شد: محتوای قالب از {name}")
                 failed += 1
                 continue
 
@@ -106,7 +121,13 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             clean_text = clean_incomplete_sentences(full_text)
             intro = extract_intro_paragraph(clean_text)
 
-            caption = f"📡 خبرگزاری {name} ({category})\n{title}\n\n{intro}\n\n🆔 @cafeshamss\nکافه شمس ☕️🍪"
+            caption = (
+                f"📡 خبرگزاری {name} ({category})\n"
+                f"{title}\n\n"
+                f"{intro}\n\n"
+                f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
+            )
+
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📖 ادامه خبر", url=link)]])
 
             try:
@@ -114,11 +135,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                     await bot.send_photo(chat_id=chat_id, photo=image_url, caption=caption[:1024], reply_markup=keyboard)
                 else:
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], reply_markup=keyboard)
-                print(f"✅ ارسال موفق از {name}")
                 sent_urls.add(link)
+                print(f"✅ ارسال موفق از {name}")
                 await asyncio.sleep(2)
             except Exception as e:
-                print(f"❗️ خطا در ارسال پیام: {e}")
+                print(f"❗️ خطا در ارسال خبر از {name}: {e}")
 
         if failed >= 4:
             weak_sources.add(name)
