@@ -3,8 +3,8 @@ from telegram import Bot
 from fetch_news import fetch_and_send_news
 
 # 🔧 تنظیمات ربات
-TOKEN = "توکن_ربات_تلگرام_اینجا"
-CHAT_ID = "آی‌دی_گروه_یا_کانال"
+TOKEN = "7957685811:AAG_gzimHewoCWteEIf0mOcLDAnMgOu6Z3M"
+CHAT_ID = "-1002514471809"
 
 async def run_bot():
     bot = Bot(token=TOKEN)
