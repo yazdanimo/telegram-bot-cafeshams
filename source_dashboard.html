@@ -16,3 +16,12 @@ try:
         f.write(html)
 except Exception as e:
     print(f"❌ خطا در ذخیره source_dashboard.html: {e}")
+        html += f"<tr style='background:{color}'><td>{name}</td><td>{total}</td><td>{success}</td><td>{failed}</td></tr>"
+
+    html += "</table><br><p>تاریخ گزارش: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M") + "</p></body></html>"
+
+    try:
+        with open("source_dashboard.html", "w", encoding="utf-8") as f:
+            f.write(html)
+    except Exception as e:
+        print(f"❌ خطا در ذخیره source_dashboard.html: {e}")
