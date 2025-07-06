@@ -13,28 +13,26 @@ with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
 def fix_named_entities(text):
-    corrections = {
-        "Araqchi": "عراقچی",
-        "KSA": "عربستان سعودی",
+    fixes = {
         "Boston Dynamics": "بوستون داینامیکس",
         "Santa Maria de Garoña": "سانتا ماریا دی گارونیا"
     }
-    for eng, fa in corrections.items():
-        text = text.replace(eng, fa)
+    for en, fa in fixes.items():
+        text = text.replace(en, fa)
     return text
 
 def clean_messy_phrases(text):
-    for phrase in ["در ۱۲ اوت در ۱۲ اوت", "در تاریخ 12 اوت در 12 اوت", "با پرداخت هزینه ناعادلانه"]:
+    for phrase in ["در ۱۲ اوت در ۱۲ اوت", "با پرداخت هزینه ناعادلانه"]:
         text = text.replace(phrase, "")
     return text
 
 def is_incomplete(text):
-    bad_endings = ["...", "،", "بین دو", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
-    return any(text.strip().endswith(ending) for ending in bad_endings)
+    bad_endings = ["...", "،", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
+    return any(text.strip().endswith(end) for end in bad_endings)
 
 def clean_incomplete_sentences(text):
     lines = text.split("\n")
-    return "\n".join([line.strip() for line in lines if len(line.strip()) >= 30 and not is_incomplete(line)])
+    return "\n".join([l.strip() for l in lines if len(l.strip()) > 30 and not is_incomplete(l)])
 
 def fix_cutoff_translation(text):
     lines = text.split("\n")
@@ -45,8 +43,7 @@ def fix_cutoff_translation(text):
 def translate_text(text):
     try:
         raw = fix_named_entities(text)
-        messy = clean_messy_phrases(raw)
-        cleaned = clean_incomplete_sentences(messy)
+        cleaned = clean_incomplete_sentences(clean_messy_phrases(raw))
         translated = translator.translate(cleaned, "Persian").result
         return fix_cutoff_translation(translated)
     except Exception as e:
@@ -63,6 +60,7 @@ def extract_intro_paragraph(text):
             return para.strip()
     return text.strip()[:300]
 
+# 🔄 تابع اصلی دریافت و ارسال خبر
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -78,7 +76,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             response = requests.get(url, timeout=10, headers=headers)
             response.raise_for_status()
         except Exception as e:
-            print(f"❌ خطا در دریافت RSS از {name}: {e}")
+            print(f"❌ خطا در RSS {name}: {e}")
             continue
 
         soup = BeautifulSoup(response.content, "xml")
@@ -96,10 +94,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             full_text, _ = extract_full_content(link)
 
             if not assess_content_quality(full_text):
-                print(f"⚠️ رد شد: کیفیت متن پایین از {name}")
+                print(f"⚠️ رد شد: متن ضعیف از {name}")
                 continue
 
-            if any(x in full_text for x in ["تماس با ما", "فید خبر", "Privacy", "آرشیو", "404", "العربية"]):
+            if any(word in full_text for word in ["تماس با ما", "Privacy", "404", "فید خبر"]):
                 print(f"⚠️ رد شد: محتوای قالب یا تبلیغ از {name}")
                 continue
 
@@ -109,7 +107,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                     title = translate_text(title)
                     full_text = translate_text(full_text)
             except Exception as e:
-                print(f"⚠️ خطا در تشخیص زبان یا ترجمه از {name}: {e}")
+                print(f"⚠️ ترجمه ناموفق از {name}: {e}")
                 continue
 
             clean_text = clean_incomplete_sentences(full_text)
@@ -131,11 +129,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                     await bot.send_photo(chat_id=chat_id, photo=image_url, caption=caption[:1024], reply_markup=keyboard)
                 else:
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], reply_markup=keyboard)
-                print(f"✅ خبر ارسال شد از {name}")
+                print(f"✅ ارسال موفق از {name}")
                 sent_urls.add(link)
                 await asyncio.sleep(2)
             except Exception as e:
-                print(f"❗️ خطا در ارسال خبر از {name}: {e}")
+                print(f"❗️ خطا در ارسال پیام از {name}: {e}")
 
-    print(f"\n📊 مجموع ارسال‌شده‌ها: {len(sent_urls)}")
+    print(f"\n📊 مجموع خبرهای ارسال‌شده: {len(sent_urls)}")
     return sent_urls
