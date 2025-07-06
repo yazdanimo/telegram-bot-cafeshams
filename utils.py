@@ -5,28 +5,20 @@ from bs4 import BeautifulSoup
 def extract_image_from_html(html):
     soup = BeautifulSoup(html, "html.parser")
 
-    # تلاش اول: تصویر داخل HTML
+    # تلاش از تگ <img>
     img = soup.find("img")
     if img and img.has_attr("src"):
         return img["src"]
 
-    # تلاش دوم: متا OG تصویر
-    meta_img = soup.find("meta", attrs={"property": "og:image"})
-    if meta_img and meta_img.has_attr("content"):
-        return meta_img["content"]
-
-    # تلاش سوم: توییتر یا گوگل
-    meta_img2 = soup.find("meta", attrs={"name": "twitter:image"})
-    if meta_img2 and meta_img2.has_attr("content"):
-        return meta_img2["content"]
-
-    meta_img3 = soup.find("meta", attrs={"itemprop": "image"})
-    if meta_img3 and meta_img3.has_attr("content"):
-        return meta_img3["content"]
+    # تلاش از تگ meta og:image
+    for prop in ["og:image", "twitter:image", "image"]:
+        meta = soup.find("meta", attrs={"property": prop}) or soup.find("meta", attrs={"name": prop}) or soup.find("meta", attrs={"itemprop": prop})
+        if meta and meta.has_attr("content"):
+            return meta["content"]
 
     return None
 
-# 📄 استخراج متن کامل از صفحه خبر
+# 📄 استخراج متن کامل خبر از HTML صفحه
 def extract_full_content(url):
     headers = { "User-Agent": "Mozilla/5.0" }
 
@@ -35,18 +27,19 @@ def extract_full_content(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
 
-        candidate_classes = [
+        # لیست کلاس‌های احتمالی محتوای خبر
+        candidates = [
             "article-content", "news-body", "content", "item-text", "post-content",
-            "entry-content", "story-body", "article-body", "main-content", "body-text"
+            "entry-content", "story-body", "main-content", "body-text", "text"
         ]
 
-        for class_name in candidate_classes:
-            content_div = soup.find(class_=class_name)
-            if content_div:
-                paragraphs = content_div.find_all("p")
-                text = "\n".join(p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 20)
+        for cls in candidates:
+            container = soup.find(class_=cls)
+            if container:
+                paragraphs = container.find_all("p")
+                text = "\n".join(p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 30)
                 return text, soup.title.string if soup.title else ""
         return "", ""
     except Exception as e:
-        print(f"❌ خطا در گرفتن محتوای کامل خبر از {url}: {e}")
+        print(f"❌ خطا در دریافت متن کامل خبر: {e}")
         return "", ""
