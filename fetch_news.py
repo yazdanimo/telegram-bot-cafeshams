@@ -12,34 +12,43 @@ from urllib.parse import urlparse
 translator = Translator()
 BRAND_TAG = "\n\n🆔 @cafeshamss\nکافه شمس ☕️🍪"
 
+# بارگذاری منابع خبری
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
+# بارگذاری پروفایل منابع (fallback / title_only)
 try:
     with open("source_profiles.json", "r", encoding="utf-8") as f:
         source_profiles = json.load(f)
 except:
     source_profiles = {}
 
+# بارگذاری لینک‌های خراب از اجراهای قبل
 try:
     with open("broken_links.json", "r", encoding="utf-8") as f:
         broken_links = json.load(f)
 except:
     broken_links = {}
 
-blocked_domains = ["foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
-                   "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"]
-def shorten_link(url):
+# دامنه‌هایی که محتواشون محافظت‌شده یا قابل استخراج نیست
+blocked_domains = [
+    "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
+    "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
+]def shorten_link(url):
     try:
-        return requests.get(f"https://is.gd/create.php?format=simple&url={url}", timeout=5).text.strip()
+        api = f"https://is.gd/create.php?format=simple&url={url}"
+        res = requests.get(api, timeout=5)
+        return res.text.strip() if res.status_code == 200 else url
     except:
         return url
 
 def is_incomplete(text):
-    return text.strip().endswith(("...", "،", "زیرا", "در حالی که", "که", "تا", "و"))
+    bad_endings = ("...", "،", "زیرا", "در حالی که", "که", "تا", "و")
+    return text.strip().endswith(bad_endings)
 
 def clean_incomplete_sentences(text):
-    return "\n".join([l.strip() for l in text.split("\n") if len(l.strip()) >= 30 and not is_incomplete(l)])
+    lines = text.split("\n")
+    return "\n".join([line.strip() for line in lines if len(line.strip()) >= 30 and not is_incomplete(line)])
 
 def fix_cutoff_translation(text):
     lines = text.split("\n")
@@ -47,8 +56,11 @@ def fix_cutoff_translation(text):
 
 def translate_text(text):
     try:
-        return fix_cutoff_translation(translator.translate(clean_incomplete_sentences(text), "Persian").result)
-    except:
+        cleaned = clean_incomplete_sentences(text)
+        translated = translator.translate(cleaned, "Persian").result
+        return fix_cutoff_translation(translated)
+    except Exception as e:
+        print(f"❌ خطا در ترجمه متن: {e}")
         return text[:400]
 
 def extract_intro_paragraph(text):
@@ -58,8 +70,8 @@ def extract_intro_paragraph(text):
     return text.strip()[:300]
 
 def assess_content_quality(text):
-    return len(text) >= 300 and len([p for p in text.split("\n") if len(p.strip()) > 40]) >= 2
-    async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
+    paragraphs = [p for p in text.split("\n") if len(p.strip()) > 40]
+    return len(text) >= 300 and len(paragraphs) >= 2async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
     health_report = {}
 
@@ -96,7 +108,7 @@ def assess_content_quality(text):
 
             domain = urlparse(link).netloc.lower()
             if any(blocked in domain or blocked in link for blocked in blocked_domains):
-                print(f"🚫 لینک محافظت‌شده یا مسدود: {link}")
+                print(f"🚫 لینک مسدود: {link}")
                 failed += 1
                 broken_links[link] = { "source": name, "status": "blocked", "date": str(datetime.datetime.now()) }
                 continue
@@ -167,15 +179,14 @@ def assess_content_quality(text):
             "total": len(items),
             "success": success_count,
             "failed": failed
-        }
-            # ⏺ ذخیره فایل broken_links.json
+        }    # ذخیره فایل broken_links.json
     try:
         with open("broken_links.json", "w", encoding="utf-8") as f:
             json.dump(broken_links, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"❌ خطا در ذخیره broken_links.json: {e}")
 
-    # 📄 ساخت داشبورد HTML از سلامت منابع
+    # ساخت داشبورد HTML از سلامت منابع
     html = "<html><head><meta charset='utf-8'><title>📊 گزارش منابع</title></head><body>"
     html += "<h2>📊 وضعیت منابع خبر</h2><table border='1' cellpadding='5' style='border-collapse:collapse'>"
     html += "<tr><th>منبع</th><th>کل</th><th>موفق</th><th>خطا</th></tr>"
@@ -195,7 +206,7 @@ def assess_content_quality(text):
     except Exception as e:
         print(f"❌ خطا در ذخیره source_dashboard.html: {e}")
 
-    # 📢 ارسال گزارش نهایی به تلگرام
+    # ارسال گزارش نهایی داخل تلگرام
     summary = ["📊 گزارش منابع:\n"]
     for name, stats in health_report.items():
         success = stats.get("success", 0)
