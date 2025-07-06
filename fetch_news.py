@@ -14,6 +14,15 @@ weak_sources = set()
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
+# 🔗 کوتاه‌کننده لینک با is.gd
+def shorten_link(url):
+    try:
+        api = f"https://is.gd/create.php?format=simple&url={url}"
+        res = requests.get(api, timeout=5)
+        return res.text.strip() if res.status_code == 200 else url
+    except:
+        return url
+
 def is_incomplete(text):
     bad = ["...", "،", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
     return any(text.strip().endswith(e) for e in bad)
@@ -78,10 +87,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             raw_html = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(raw_html)
 
-            # 🖼 رد لینک گالری بدون تصویر
+            # 📷 گالری تصویری بدون متن
             if any(x in link.lower() for x in ["/photo/", "/gallery/", "/picture/"]):
                 if image_url:
-                    msg = f"🖼 گزارش تصویری از {name}\n🎙 {title}\n📖 ادامه گالری: {link}\n🆔 @cafeshamss"
+                    msg = f"🖼 گزارش تصویری از {name}\n🎙 {title}\n🆔 @cafeshamss"
                     try:
                         await bot.send_photo(chat_id=chat_id, photo=image_url, caption=msg[:1024])
                         sent_urls.add(link)
@@ -121,8 +130,14 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             clean_text = clean_incomplete_sentences(full_text)
             intro = extract_intro_paragraph(clean_text)
 
-            caption = f"🗞️ خبر ویژه از {name} ({category})\n🎙️ {title}\n\n📝 {intro}\n\n📖 ادامه خبر: {link}\n🆔 @cafeshamss ☕️📡🍪"
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📖 مطالعه کامل", url=link)]])
+            # 🔗 ساخت لینک کوتاه و دکمه مطالعه خبر
+            short_link = shorten_link(link)
+            caption = (
+                f"🗞️ خبر ویژه از {name} ({category})\n🎙️ {title}\n\n📝 {intro}\n\n🆔 @cafeshamss ☕️📡🍪"
+            )
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📖 مشاهده خبر در منبع", url=short_link)]
+            ])
 
             try:
                 if image_url:
