@@ -6,6 +6,7 @@ from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from utils import extract_full_content, extract_image_from_html
 import json
 import asyncio
+from urllib.parse import urlparse
 
 translator = Translator()
 dead_sources = set()
@@ -14,7 +15,11 @@ weak_sources = set()
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-# 🔗 کوتاه‌کننده لینک با is.gd
+blocked_domains = [
+    "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
+    "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
+]
+
 def shorten_link(url):
     try:
         api = f"https://is.gd/create.php?format=simple&url={url}"
@@ -52,7 +57,6 @@ def extract_intro_paragraph(text):
 def assess_content_quality(text):
     paras = [p for p in text.split("\n") if len(p.strip()) > 40]
     return len(text) >= 300 and len(paras) >= 2
-
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -83,11 +87,16 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             if not link or link in sent_urls:
                 continue
 
+            domain = urlparse(link).netloc.lower()
+            if any(blocked in domain or blocked in link for blocked in blocked_domains):
+                print(f"🚫 لینک مسدود یا محافظت‌شده: {link}")
+                continue
+
             title = item.title.text.strip() if item.title else "بدون عنوان"
             raw_html = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(raw_html)
 
-            # 📷 گالری تصویری بدون متن
+            # گالری تصویری بدون متن
             if any(x in link.lower() for x in ["/photo/", "/gallery/", "/picture/"]):
                 if image_url:
                     msg = f"🖼 گزارش تصویری از {name}\n🎙 {title}\n🆔 @cafeshamss"
@@ -129,9 +138,8 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
 
             clean_text = clean_incomplete_sentences(full_text)
             intro = extract_intro_paragraph(clean_text)
-
-            # 🔗 ساخت لینک کوتاه و دکمه مطالعه خبر
             short_link = shorten_link(link)
+
             caption = (
                 f"🗞️ خبر ویژه از {name} ({category})\n🎙️ {title}\n\n📝 {intro}\n\n🆔 @cafeshamss ☕️📡🍪"
             )
