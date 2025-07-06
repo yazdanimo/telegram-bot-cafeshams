@@ -5,7 +5,6 @@ from bs4 import BeautifulSoup
 def extract_image_from_html(html):
     soup = BeautifulSoup(html, "html.parser")
 
-    # تلاش برای یافتن metaهای og:image یا twitter:image
     for prop in ["og:image", "twitter:image", "image"]:
         meta = (
             soup.find("meta", attrs={"property": prop}) or
@@ -15,14 +14,12 @@ def extract_image_from_html(html):
         if meta and meta.get("content"):
             return meta["content"]
 
-    # جستجو در تصاویر عمومی داخل <img>
     for img in soup.find_all("img"):
         src = img.get("src")
         if src and src.startswith("http"):
             if not any(x in src.lower() for x in ["logo", "icon", "banner", ".gif"]):
                 return src
 
-    # بررسی <figure> یا <noscript>
     figure_img = soup.select_one("figure img")
     if figure_img and figure_img.get("src"):
         return figure_img["src"]
@@ -33,21 +30,25 @@ def extract_image_from_html(html):
 
     return None
 
-# 📄 استخراج متن کامل خبر از صفحه HTML
+# 📰 استخراج متن کامل خبر از صفحهٔ HTML
 def extract_full_content(url):
     headers = { "User-Agent": "Mozilla/5.0" }
 
     try:
         response = requests.get(url, timeout=10, headers=headers)
-        response.raise_for_status()
+
+        # بررسی 404 واقعی یا محتوای نامعتبر
+        if response.status_code == 404 or "404" in response.text or "صفحه مورد نظر یافت نشد" in response.text:
+            print("❌ 404 واقعی یا صفحه نامعتبر:", url)
+            return "", ""
+
         soup = BeautifulSoup(response.content, "html.parser")
 
-        # کلاس‌هایی که معمولاً محتوای اصلی خبر رو دارن
         candidates = [
             "news-body", "item-text", "article", "body", "entry-content", "story-body",
             "content-main", "text", "main-content", "article-content", "story-text",
             "post-content", "lead", "news-text", "mainText", "articleBody", "report-content",
-            "newsContent", "contentInner", "detail-body"
+            "newsContent", "contentInner", "detail-body", "item-body", "content-box"
         ]
 
         for cls in candidates:
