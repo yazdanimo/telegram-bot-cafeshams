@@ -78,14 +78,14 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             raw_html = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(raw_html)
 
-            # 📷 رد خودکار لینک‌های گالری یا تصویری
+            # 🖼 رد لینک گالری بدون تصویر
             if any(x in link.lower() for x in ["/photo/", "/gallery/", "/picture/"]):
                 if image_url:
                     msg = f"🖼 گزارش تصویری از {name}\n🎙 {title}\n📖 ادامه گالری: {link}\n🆔 @cafeshamss"
                     try:
                         await bot.send_photo(chat_id=chat_id, photo=image_url, caption=msg[:1024])
                         sent_urls.add(link)
-                        print(f"📸 ارسال تصویری گالری از {name}")
+                        print(f"📸 ارسال گالری موفق از {name}")
                         await asyncio.sleep(2)
                     except Exception as e:
                         print(f"❗️ خطا در ارسال تصویر گالری: {e}")
@@ -106,7 +106,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 continue
 
             if any(x in full_text for x in ["تماس با ما", "فید خبر", "Privacy", "آرشیو", "404"]):
-                print(f"⚠️ رد شد: محتوای قالب از {name}")
+                print(f"⚠️ حذف قالب از {name}")
                 failed += 1
                 continue
 
@@ -121,14 +121,8 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             clean_text = clean_incomplete_sentences(full_text)
             intro = extract_intro_paragraph(clean_text)
 
-            caption = (
-                f"📡 خبرگزاری {name} ({category})\n"
-                f"{title}\n\n"
-                f"{intro}\n\n"
-                f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
-            )
-
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📖 ادامه خبر", url=link)]])
+            caption = f"🗞️ خبر ویژه از {name} ({category})\n🎙️ {title}\n\n📝 {intro}\n\n📖 ادامه خبر: {link}\n🆔 @cafeshamss ☕️📡🍪"
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📖 مطالعه کامل", url=link)]])
 
             try:
                 if image_url:
