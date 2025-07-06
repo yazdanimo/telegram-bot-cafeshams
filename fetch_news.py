@@ -27,16 +27,11 @@ try:
 except:
     broken_links = {}
 
-blocked_domains = [
-    "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
-    "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
-]
-
+blocked_domains = ["foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
+                   "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"]
 def shorten_link(url):
     try:
-        api = f"https://is.gd/create.php?format=simple&url={url}"
-        res = requests.get(api, timeout=5)
-        return res.text.strip() if res.status_code == 200 else url
+        return requests.get(f"https://is.gd/create.php?format=simple&url={url}", timeout=5).text.strip()
     except:
         return url
 
@@ -44,8 +39,7 @@ def is_incomplete(text):
     return text.strip().endswith(("...", "،", "زیرا", "در حالی که", "که", "تا", "و"))
 
 def clean_incomplete_sentences(text):
-    lines = text.split("\n")
-    return "\n".join([l.strip() for l in lines if len(l.strip()) >= 30 and not is_incomplete(l)])
+    return "\n".join([l.strip() for l in text.split("\n") if len(l.strip()) >= 30 and not is_incomplete(l)])
 
 def fix_cutoff_translation(text):
     lines = text.split("\n")
@@ -53,11 +47,8 @@ def fix_cutoff_translation(text):
 
 def translate_text(text):
     try:
-        clean = clean_incomplete_sentences(text)
-        translated = translator.translate(clean, "Persian").result
-        return fix_cutoff_translation(translated)
-    except Exception as e:
-        print(f"❌ خطا در ترجمه متن: {e}")
+        return fix_cutoff_translation(translator.translate(clean_incomplete_sentences(text), "Persian").result)
+    except:
         return text[:400]
 
 def extract_intro_paragraph(text):
@@ -67,10 +58,8 @@ def extract_intro_paragraph(text):
     return text.strip()[:300]
 
 def assess_content_quality(text):
-    paras = [p for p in text.split("\n") if len(p.strip()) > 40]
-    return len(text) >= 300 and len(paras) >= 2
-
-async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
+    return len(text) >= 300 and len([p for p in text.split("\n") if len(p.strip()) > 40]) >= 2
+    async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
     health_report = {}
 
@@ -127,16 +116,16 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                     await bot.send_message(chat_id=chat_id, text=caption[:4096])
                     sent_urls.add(link)
                     success_count += 1
-                    print(f"📎 ارسال تیتر تنها از {name}")
                     continue
+
                 elif fallback_mode:
                     intro = raw_html[:300] if raw_html else f"📌 لینک خبر: {short_link}"
                     caption = f"📡 خبر از {name}\n🎙️ {title}\n📝 {intro}\n🔗 {short_link}{BRAND_TAG}"
                     await bot.send_message(chat_id=chat_id, text=caption[:4096])
                     sent_urls.add(link)
                     success_count += 1
-                    print(f"📎 ارسال با توضیح جایگزین از {name}")
                     continue
+
                 else:
                     print(f"❌ رد کامل از {name}")
                     failed += 1
@@ -153,7 +142,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 if lang == "en":
                     title = translate_text(title).strip()
                     full_text = translate_text(full_text).strip()
-                    print(f"✅ ترجمه موفق از {name}")
             except Exception as e:
                 print(f"❌ خطا در ترجمه از {name}: {e}")
 
@@ -171,7 +159,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], reply_markup=keyboard)
                 sent_urls.add(link)
                 success_count += 1
-                print(f"✅ ارسال موفق از {name}")
                 await asyncio.sleep(2)
             except:
                 failed += 1
@@ -181,15 +168,39 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             "success": success_count,
             "failed": failed
         }
-
-    # ذخیره فایل broken_links.json
+            # ⏺ ذخیره فایل broken_links.json
     try:
         with open("broken_links.json", "w", encoding="utf-8") as f:
             json.dump(broken_links, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"❌ خطا در ذخیره broken_links.json: {e}")
 
-    # ذخیره داشبورد HTML
+    # 📄 ساخت داشبورد HTML از سلامت منابع
     html = "<html><head><meta charset='utf-8'><title>📊 گزارش منابع</title></head><body>"
     html += "<h2>📊 وضعیت منابع خبر</h2><table border='1' cellpadding='5' style='border-collapse:collapse'>"
-    html += "<tr><th>منبع</th><th>کل</th><th>موفق</th><th>خطا</
+    html += "<tr><th>منبع</th><th>کل</th><th>موفق</th><th>خطا</th></tr>"
+
+    for name, stats in health_report.items():
+        total = stats.get("total", 0)
+        success = stats.get("success", 0)
+        failed = stats.get("failed", 0)
+        color = "#d4fcdc" if success > failed else "#fde4e1"
+        html += f"<tr style='background:{color}'><td>{name}</td><td>{total}</td><td>{success}</td><td>{failed}</td></tr>"
+
+    html += "</table><br><p>تاریخ گزارش: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M") + "</p></body></html>"
+
+    try:
+        with open("source_dashboard.html", "w", encoding="utf-8") as f:
+            f.write(html)
+    except Exception as e:
+        print(f"❌ خطا در ذخیره source_dashboard.html: {e}")
+
+    # 📢 ارسال گزارش نهایی به تلگرام
+    summary = ["📊 گزارش منابع:\n"]
+    for name, stats in health_report.items():
+        success = stats.get("success", 0)
+        failed = stats.get("failed", 0)
+        summary.append(f"{name}: ✅ {success} | ❌ {failed}")
+
+    report_text = "\n".join(summary) + BRAND_TAG
+    await bot.send_message(chat_id=chat_id, text=report_text[:4096])
