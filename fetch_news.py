@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from langdetect import detect
 from translatepy import Translator
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from utils import extract_full_content, extract_image_from_html
+from utils import extract_full_content, extract_image_from_html, extract_video_link
 import json
 import asyncio
 import datetime
@@ -101,6 +101,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             title = item.title.text.strip() if item.title else "بدون عنوان"
             raw_html = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(raw_html)
+            video_url = extract_video_link(raw_html)
 
             if any(x in link.lower() for x in ["/photo/", "/gallery/", "/picture/"]):
                 if image_url:
@@ -141,11 +142,12 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             short_link = shorten_link(link)
 
             caption = (
-                f"🗞️ خبر ویژه از {name} ({category})\n🎙️ {title}\n\n📝 {intro}\n\n🆔 @cafeshamss ☕️📡🍪"
+                f"📰 خبر ویژه از {name} ({category})\n🎙️ {title}\n\n📝 {intro}\n🆔 @cafeshamss ☕️📡🍪"
             )
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📖 مشاهده خبر در منبع", url=short_link)]
-            ])
+
+            keyboard = InlineKeyboardMarkup([ [InlineKeyboardButton("📖 مشاهده خبر در منبع", url=short_link)] ])
+            if video_url:
+                keyboard.inline_keyboard.append([InlineKeyboardButton("🎥 مشاهده ویدیو", url=video_url)])
 
             try:
                 if image_url:
