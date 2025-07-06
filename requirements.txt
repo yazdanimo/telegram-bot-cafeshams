@@ -4,4 +4,3 @@ lxml
 langdetect
 translatepy
 python-telegram-bot==20.3
-pip install -r requirements.txt
