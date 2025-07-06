@@ -21,6 +21,12 @@ try:
 except:
     source_profiles = {}
 
+try:
+    with open("broken_links.json", "r", encoding="utf-8") as f:
+        broken_links = json.load(f)
+except:
+    broken_links = {}
+
 blocked_domains = [
     "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
     "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
@@ -96,25 +102,26 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
 
         for item in items[:8]:
             link = item.link.text.strip() if item.link else ""
-            if not link or link in sent_urls:
+            if not link or link in sent_urls or broken_links.get(link):
                 continue
 
             domain = urlparse(link).netloc.lower()
             if any(blocked in domain or blocked in link for blocked in blocked_domains):
                 print(f"🚫 لینک محافظت‌شده یا مسدود: {link}")
                 failed += 1
+                broken_links[link] = { "source": name, "status": "blocked", "date": str(datetime.datetime.now()) }
                 continue
 
             title = item.title.text.strip() if item.title else "بدون عنوان"
             raw_html = item.description.text.strip() if item.description and item.description.text else ""
             image_url = extract_image_from_html(raw_html)
             video_url = extract_video_link(raw_html)
-
             full_text, _ = extract_full_content(link)
-
             short_link = shorten_link(link)
 
             if "404" in full_text or not full_text:
+                broken_links[link] = { "source": name, "status": "404", "date": str(datetime.datetime.now()) }
+
                 if title_only_mode:
                     caption = f"📡 خبر از {name}\n🎙️ {title}\n🔗 {short_link}{BRAND_TAG}"
                     await bot.send_message(chat_id=chat_id, text=caption[:4096])
@@ -138,6 +145,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             if not assess_content_quality(full_text):
                 print(f"⚠️ متن ضعیف از {name}")
                 failed += 1
+                broken_links[link] = { "source": name, "status": "weak", "date": str(datetime.datetime.now()) }
                 continue
 
             try:
@@ -152,9 +160,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             intro = extract_intro_paragraph(full_text)
             caption = f"📡 خبر از {name} ({category})\n🎙️ {title}\n\n📝 {intro}{BRAND_TAG}"
 
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📖 مشاهده در منبع", url=short_link)]
-            ])
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📖 مشاهده در منبع", url=short_link)]])
             if video_url:
                 keyboard.inline_keyboard.append([InlineKeyboardButton("🎥 مشاهده ویدیو", url=video_url)])
 
@@ -176,11 +182,14 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             "failed": failed
         }
 
-    summary = ["📊 گزارش منابع:\n"]
-    for name, stats in health_report.items():
-        success = stats.get("success", 0)
-        failed = stats.get("failed", 0)
-        summary.append(f"{name}: ✅ {success} | ❌ {failed}")
+    # ذخیره فایل broken_links.json
+    try:
+        with open("broken_links.json", "w", encoding="utf-8") as f:
+            json.dump(broken_links, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"❌ خطا در ذخیره broken_links.json: {e}")
 
-    report_text = "\n".join(summary) + BRAND_TAG
-    await bot.send_message(chat_id=chat_id, text=report_text[:4096])
+    # ذخیره داشبورد HTML
+    html = "<html><head><meta charset='utf-8'><title>📊 گزارش منابع</title></head><body>"
+    html += "<h2>📊 وضعیت منابع خبر</h2><table border='1' cellpadding='5' style='border-collapse:collapse'>"
+    html += "<tr><th>منبع</th><th>کل</th><th>موفق</th><th>خطا</
