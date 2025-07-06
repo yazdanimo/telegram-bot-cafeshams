@@ -31,6 +31,7 @@ blocked_domains = [
     "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
     "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
 ]
+
 def shorten_link(url):
     try:
         api = f"https://is.gd/create.php?format=simple&url={url}"
@@ -69,7 +70,8 @@ def extract_intro_paragraph(text):
 def assess_content_quality(text):
     paragraphs = [p for p in text.split("\n") if len(p.strip()) > 40]
     return len(text) >= 300 and len(paragraphs) >= 2
-    async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
+
+async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
     health_report = {}
 
@@ -188,7 +190,8 @@ def assess_content_quality(text):
             "success": success_count,
             "failed": failed
         }
-            # ذخیره لینک‌های خراب برای جلوگیری از ارسال تکراری
+
+    # ذخیره لینک‌های خراب برای جلوگیری از ارسال تکراری
     try:
         with open("broken_links.json", "w", encoding="utf-8") as f:
             json.dump(broken_links, f, ensure_ascii=False, indent=2)
@@ -224,3 +227,4 @@ def assess_content_quality(text):
 
     report_text = "\n".join(summary) + BRAND_TAG
     await bot.send_message(chat_id=chat_id, text=report_text[:4096])
+    
