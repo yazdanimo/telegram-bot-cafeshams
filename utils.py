@@ -5,12 +5,10 @@ from bs4 import BeautifulSoup
 def extract_image_from_html(html):
     soup = BeautifulSoup(html, "html.parser")
 
-    # تلاش از تگ <img>
     img = soup.find("img")
     if img and img.has_attr("src"):
         return img["src"]
 
-    # تلاش از تگ meta og:image
     for prop in ["og:image", "twitter:image", "image"]:
         meta = soup.find("meta", attrs={"property": prop}) or soup.find("meta", attrs={"name": prop}) or soup.find("meta", attrs={"itemprop": prop})
         if meta and meta.has_attr("content"):
@@ -18,7 +16,7 @@ def extract_image_from_html(html):
 
     return None
 
-# 📄 استخراج متن کامل خبر از HTML صفحه
+# 📄 استخراج متن کامل از صفحهٔ خبر
 def extract_full_content(url):
     headers = { "User-Agent": "Mozilla/5.0" }
 
@@ -27,7 +25,6 @@ def extract_full_content(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
 
-        # لیست کلاس‌های احتمالی محتوای خبر
         candidates = [
             "article-content", "news-body", "content", "item-text", "post-content",
             "entry-content", "story-body", "main-content", "body-text", "text"
