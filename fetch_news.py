@@ -166,3 +166,27 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         print(f"🗑 منابع مرده: {', '.join(dead_sources)}")
     if weak_sources:
         print(f"⚠️ منابع ضعیف: {', '.join(weak_sources)}")
+import datetime
+
+health_report = {}
+health_report_path = "source_health.json"
+date_key = datetime.datetime.now().strftime("%Y-%m-%d")
+
+for source in sources:
+    name = source.get("name")
+    total = 30  # یا len(items) اگر متغیر باشه
+    success = len([u for u in sent_urls if name in u])
+    failed = 0
+    if name in dead_sources:
+        failed += 4
+    if name in weak_sources:
+        failed += 3
+
+    health_report[name] = {
+        "total": total,
+        "success": success,
+        "failed": failed
+    }
+
+with open(health_report_path, "w", encoding="utf-8") as f:
+    json.dump({date_key: health_report}, f, ensure_ascii=False, indent=2)
