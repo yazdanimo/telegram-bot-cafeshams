@@ -1,6 +1,7 @@
 requests
 beautifulsoup4
+lxml
 langdetect
 translatepy
 python-telegram-bot==20.3
-lxml
+pip install -r requirements.txt
