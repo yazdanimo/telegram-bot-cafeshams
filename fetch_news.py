@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from langdetect import detect
 from translatepy import Translator
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from utils import extract_full_content, extract_image_from_html, extract_video_link
+from utils import extract_full_content, extract_image_from_html
 import json
 import asyncio
 import datetime
