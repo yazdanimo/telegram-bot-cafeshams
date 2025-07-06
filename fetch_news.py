@@ -54,13 +54,21 @@ def fix_cutoff_translation(text):
 
 def translate_text(text):
     try:
+        # پاکسازی جمله‌های ناقص یا خیلی کوتاه
         cleaned = clean_incomplete_sentences(text)
+        if not cleaned or len(cleaned.strip()) < 50:
+            print("⚠️ متن قابل ترجمه نیست (خیلی کوتاه یا ناقص)")
+            return text[:400]  # نمایش خلاصه‌ای از متن اصلی
+
+        # ترجمه با Translatepy
         translated = translator.translate(cleaned, "Persian").result
-        return fix_cutoff_translation(translated)
+
+        # حذف ترجمه‌های ناقص یا قطع‌شده
+        fixed = fix_cutoff_translation(translated)
+        return fixed.strip() if fixed else translated.strip()
     except Exception as e:
         print(f"❌ خطا در ترجمه متن: {e}")
         return text[:400]
-
 def extract_intro_paragraph(text):
     for para in text.split("\n"):
         if len(para.strip()) > 60 and not is_incomplete(para):
