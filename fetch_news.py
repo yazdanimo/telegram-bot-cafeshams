@@ -1,64 +1,8 @@
-import requests
-from bs4 import BeautifulSoup
-from langdetect import detect
-from translatepy import Translator
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from utils import extract_full_content, extract_image_from_html
-import json
-import asyncio
-from urllib.parse import urlparse
+import datetime
 
-translator = Translator()
-dead_sources = set()
-weak_sources = set()
-
-with open("sources.json", "r", encoding="utf-8") as f:
-    sources = json.load(f)
-
-blocked_domains = [
-    "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
-    "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
-]
-
-def shorten_link(url):
-    try:
-        api = f"https://is.gd/create.php?format=simple&url={url}"
-        res = requests.get(api, timeout=5)
-        return res.text.strip() if res.status_code == 200 else url
-    except:
-        return url
-
-def is_incomplete(text):
-    bad = ["...", "،", "برای گسترش", "در حالی که", "زیرا", "تا", "و", "که"]
-    return any(text.strip().endswith(e) for e in bad)
-
-def clean_incomplete_sentences(text):
-    lines = text.split("\n")
-    return "\n".join([l.strip() for l in lines if len(l.strip()) >= 30 and not is_incomplete(l)])
-
-def fix_cutoff_translation(text):
-    lines = text.split("\n")
-    return "\n".join(lines[:-1]) if lines and is_incomplete(lines[-1]) else text
-
-def translate_text(text):
-    try:
-        clean = clean_incomplete_sentences(text)
-        translated = translator.translate(clean, "Persian").result
-        return fix_cutoff_translation(translated)
-    except:
-        return text[:400]
-
-def extract_intro_paragraph(text):
-    for para in text.split("\n"):
-        if len(para.strip()) > 60 and not is_incomplete(para):
-            return para.strip()
-    return text.strip()[:300]
-
-def assess_content_quality(text):
-    paras = [p for p in text.split("\n") if len(p.strip()) > 40]
-    return len(text) >= 300 and len(paras) >= 2
 async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     headers = {"User-Agent": "Mozilla/5.0"}
+    health_report = {}
 
     for source in sources:
         name = source.get("name")
@@ -74,6 +18,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         except:
             print(f"❌ خطا در RSS {name}")
             dead_sources.add(name)
+            health_report[name] = { "total": 0, "success": 0, "failed": 1 }
             continue
 
         soup = BeautifulSoup(res.content, "xml")
@@ -81,6 +26,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         print(f"\n📡 RSS {name} → {len(items)} خبر")
 
         failed = 0
+        success_count = 0
 
         for item in items[:8]:
             link = item.link.text.strip() if item.link else ""
@@ -90,23 +36,24 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             domain = urlparse(link).netloc.lower()
             if any(blocked in domain or blocked in link for blocked in blocked_domains):
                 print(f"🚫 لینک مسدود یا محافظت‌شده: {link}")
+                failed += 1
                 continue
 
             title = item.title.text.strip() if item.title else "بدون عنوان"
             raw_html = item.description.text.strip() if item.description else ""
             image_url = extract_image_from_html(raw_html)
 
-            # گالری تصویری بدون متن
             if any(x in link.lower() for x in ["/photo/", "/gallery/", "/picture/"]):
                 if image_url:
                     msg = f"🖼 گزارش تصویری از {name}\n🎙 {title}\n🆔 @cafeshamss"
                     try:
                         await bot.send_photo(chat_id=chat_id, photo=image_url, caption=msg[:1024])
                         sent_urls.add(link)
+                        success_count += 1
                         print(f"📸 ارسال گالری موفق از {name}")
                         await asyncio.sleep(2)
-                    except Exception as e:
-                        print(f"❗️ خطا در ارسال تصویر گالری: {e}")
+                    except:
+                        failed += 1
                 else:
                     print(f"⚠️ لینک گالری بدون تصویر معتبر: {link}")
                 continue
@@ -114,17 +61,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             full_text, _ = extract_full_content(link)
             if "404" in full_text or not full_text:
                 print(f"❌ خطا در دریافت محتوا از: {link}")
-                dead_sources.add(name)
                 failed += 1
                 continue
 
             if not assess_content_quality(full_text):
                 print(f"⚠️ رد شد: متن ضعیف از {name}")
-                failed += 1
-                continue
-
-            if any(x in full_text for x in ["تماس با ما", "فید خبر", "Privacy", "آرشیو", "404"]):
-                print(f"⚠️ حذف قالب از {name}")
                 failed += 1
                 continue
 
@@ -153,40 +94,31 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
                 else:
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], reply_markup=keyboard)
                 sent_urls.add(link)
+                success_count += 1
                 print(f"✅ ارسال موفق از {name}")
                 await asyncio.sleep(2)
-            except Exception as e:
-                print(f"❗️ خطا در ارسال خبر از {name}: {e}")
+            except:
+                failed += 1
 
         if failed >= 4:
             weak_sources.add(name)
+
+        health_report[name] = {
+            "total": len(items),
+            "success": success_count,
+            "failed": failed
+        }
+
+    # ذخیره فایل گزارش سلامت منابع
+    date_key = datetime.datetime.now().strftime("%Y-%m-%d")
+    try:
+        with open("source_health.json", "w", encoding="utf-8") as f:
+            json.dump({date_key: health_report}, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"❌ خطا در ذخیره source_health.json: {e}")
 
     print(f"\n📊 مجموع ارسال‌شده‌ها: {len(sent_urls)}")
     if dead_sources:
         print(f"🗑 منابع مرده: {', '.join(dead_sources)}")
     if weak_sources:
         print(f"⚠️ منابع ضعیف: {', '.join(weak_sources)}")
-import datetime
-
-health_report = {}
-health_report_path = "source_health.json"
-date_key = datetime.datetime.now().strftime("%Y-%m-%d")
-
-for source in sources:
-    name = source.get("name")
-    total = 30  # یا len(items) اگر متغیر باشه
-    success = len([u for u in sent_urls if name in u])
-    failed = 0
-    if name in dead_sources:
-        failed += 4
-    if name in weak_sources:
-        failed += 3
-
-    health_report[name] = {
-        "total": total,
-        "success": success,
-        "failed": failed
-    }
-
-with open(health_report_path, "w", encoding="utf-8") as f:
-    json.dump({date_key: health_report}, f, ensure_ascii=False, indent=2)
