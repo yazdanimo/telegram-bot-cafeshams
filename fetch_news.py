@@ -16,10 +16,11 @@ weak_sources = set()
 with open("sources.json", "r", encoding="utf-8") as f:
     sources = json.load(f)
 
-blocked_domains = [
-    "foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
-    "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"
-]
+with open("source_profiles.json", "r", encoding="utf-8") as f:
+    source_profiles = json.load(f)
+
+blocked_domains = ["foreignaffairs.com", "brookings.edu", "carnegieendowment.org",
+                   "cnn.com/videos", "aljazeera.com/video", "theatlantic.com", "iran-daily.com"]
 
 def shorten_link(url):
     try:
@@ -67,6 +68,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
         name = source.get("name")
         url = source.get("url")
         category = source.get("category", "news")
+        profile = source_profiles.get(name, {})
+
+        fallback_mode = profile.get("mode") == "fallback"
+        title_only_mode = profile.get("mode") == "title_only"
 
         if category_filter and category != category_filter:
             continue
@@ -103,26 +108,34 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             image_url = extract_image_from_html(raw_html)
             video_url = extract_video_link(raw_html)
 
-            if any(x in link.lower() for x in ["/photo/", "/gallery/", "/picture/"]):
-                if image_url:
-                    msg = f"🖼 گزارش تصویری از {name}\n🎙 {title}\n🆔 @cafeshamss"
-                    try:
-                        await bot.send_photo(chat_id=chat_id, photo=image_url, caption=msg[:1024])
-                        sent_urls.add(link)
-                        success_count += 1
-                        print(f"📸 ارسال گالری موفق از {name}")
-                        await asyncio.sleep(2)
-                    except:
-                        failed += 1
-                else:
-                    print(f"⚠️ لینک گالری بدون تصویر معتبر: {link}")
-                continue
-
             full_text, _ = extract_full_content(link)
             if "404" in full_text or not full_text:
-                print(f"❌ خطا در دریافت محتوا از: {link}")
-                failed += 1
-                continue
+                short_link = shorten_link(link)
+                if title_only_mode:
+                    caption = f"📡 خبر از {name}\n🎙️ {title}\n🔗 {short_link}\n🆔 @cafeshamss"
+                    try:
+                        await bot.send_message(chat_id=chat_id, text=caption[:4096])
+                        sent_urls.add(link)
+                        success_count += 1
+                        print(f"📎 ارسال تیتر تنها از {name}")
+                    except:
+                        print(f"❌ ارسال تیتر شکست خورد از {name}")
+                    continue
+                elif fallback_mode:
+                    intro = item.description.text.strip()[:300] if item.description else ""
+                    caption = f"📡 خبر از {name}\n🎙️ {title}\n📝 {intro}\n🔗 {short_link}\n🆔 @cafeshamss"
+                    try:
+                        await bot.send_message(chat_id=chat_id, text=caption[:4096])
+                        sent_urls.add(link)
+                        success_count += 1
+                        print(f"📎 ارسال با توضیح جایگزین از {name}")
+                    except:
+                        print(f"❌ ارسال fallback شکست خورد از {name}")
+                    continue
+                else:
+                    print(f"❌ رد کامل از {name}")
+                    failed += 1
+                    continue
 
             if not assess_content_quality(full_text):
                 print(f"⚠️ رد شد: متن ضعیف از {name}")
@@ -142,10 +155,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
             short_link = shorten_link(link)
 
             caption = (
-                f"📰 خبر ویژه از {name} ({category})\n🎙️ {title}\n\n📝 {intro}\n🆔 @cafeshamss ☕️📡🍪"
+                f"📡 خبر از {name} ({category})\n🎙️ {title}\n\n📝 {intro}\n🆔 @cafeshamss ☕️📡🍪"
             )
 
-            keyboard = InlineKeyboardMarkup([ [InlineKeyboardButton("📖 مشاهده خبر در منبع", url=short_link)] ])
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📖 مشاهده خبر در منبع", url=short_link)]])
             if video_url:
                 keyboard.inline_keyboard.append([InlineKeyboardButton("🎥 مشاهده ویدیو", url=video_url)])
 
@@ -177,8 +190,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, category_filter=None):
     except Exception as e:
         print(f"❌ خطا در ذخیره source_health.json: {e}")
 
-    print(f"\n📊 مجموع ارسال‌شده‌ها: {len(sent_urls)}")
-    if dead_sources:
-        print(f"🗑 منابع مرده: {', '.join(dead_sources)}")
-    if weak_sources:
-        print(f"⚠️ منابع ضعیف: {', '.join(weak_sources)}")
+    summary = ["📊 گزارش روزانه کافه شمس:\n"]
+    for name, stats in health_report.items():
+        success = stats.get("success", 0)
+        failed = stats.get("failed", 0)
+        summary.append(f"{name}: ✅ {success} | ❌ {failed}")
+
+    await bot.send_message(chat_id=chat_id, text="\n".join(summary)[:4096])
