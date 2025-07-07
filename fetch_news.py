@@ -1,3 +1,4 @@
+from utils import load_sources
 import aiohttp
 from utils import (
     extract_full_content,
