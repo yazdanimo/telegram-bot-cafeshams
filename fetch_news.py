@@ -6,28 +6,27 @@ from utils import (
     summarize_text,
     format_news,
     translate_text,
-    is_text_english,
-    parse_rss,
-    shorten_url
+    is_persian,
+    parse_rss
 )
 
 async def fetch_and_send_news(bot, chat_id, sent_urls):
     sources = load_sources()
-    report_results = []
+    report = []
 
-    for source in sources:
-        name = source.get("name", "بدون‌نام")
-        rss_url = source.get("rss")
-        fallback_url = source.get("fallback")
+    for src in sources:
+        name = src.get("name", "بدون‌نام")
+        rss_url = src.get("rss")
+        fallback = src.get("fallback")
 
         try:
             items = parse_rss(rss_url)
             if not items:
                 raise Exception("هیچ خبری دریافت نشد")
 
-            report_results.append({ "name": name, "status": "success", "count": len(items) })
+            report.append({"name": name, "status": "success", "count": len(items)})
 
-            for item in items[:3]:  # محدود به ۳ پیام برای جلوگیری از flood
+            for item in items[:3]:
                 link = item.get("link")
                 if not link or link in sent_urls:
                     continue
@@ -35,57 +34,55 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 try:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(link, timeout=15) as res:
-                            raw_html = await res.text()
+                            raw = await res.text()
 
                     title = item.get("title", "")
-                    full_text = extract_full_content(raw_html)
-                    summary = summarize_text(full_text)
+                    full = extract_full_content(raw)
+                    summary = summarize_text(full)
 
-                    if is_text_english(title + " " + full_text):
+                    # فقط متون غیر فارسی را ترجمه کن
+                    if not is_persian(title + " " + summary):
                         title = translate_text(title)
                         summary = translate_text(summary)
 
                     caption = format_news(name, title, summary, link)
-
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], parse_mode="HTML")
                     sent_urls.add(link)
-                    await asyncio.sleep(3)  # تاخیر بین ارسال برای کنترل flood
+                    await asyncio.sleep(3)
 
                 except Exception as e:
                     print(f"⚠️ خطا در ارسال خبر → {link}: {e}")
                     continue
 
         except Exception as e:
-            # تلاش جایگزین با fallback اگر موجود باشد
-            if fallback_url:
+            report.append({"name": name, "status": "error", "error": str(e)})
+
+            # تلاش با fallback اگر تعریف شده
+            if fallback:
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(fallback_url, timeout=15) as res:
-                            html = await res.text()
+                        async with session.get(fallback, timeout=15) as res:
+                            raw = await res.text()
 
                     title = f"{name} - گزارش جایگزین"
-                    full_text = extract_full_content(html)
-                    summary = summarize_text(full_text)
-                    short_link = shorten_url(fallback_url)
-                    caption = format_news(name, title, summary, short_link)
-
+                    full = extract_full_content(raw)
+                    summary = summarize_text(full)
+                    caption = format_news(name, title, summary, fallback)
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], parse_mode="HTML")
-                    report_results.append({ "name": name, "status": "fallback", "count": 1 })
+                    report[-1]["status"] = "fallback"
                     await asyncio.sleep(3)
 
-                except Exception as fallback_error:
-                    report_results.append({ "name": name, "status": "error", "error": str(fallback_error) })
-            else:
-                report_results.append({ "name": name, "status": "error", "error": str(e) })
+                except Exception as f_err:
+                    report.append({"name": name, "status": "fallback_error", "error": str(f_err)})
 
-    # ساخت گزارش نهایی مرتب
-    report_lines = []
-    for r in report_results:
+    # ارسال گزارش نهایی
+    lines = []
+    for r in report:
         if r["status"] == "success":
-            report_lines.append(f"✅ <b>{r['name']}</b> → دریافت {r['count']} خبر")
+            lines.append(f"✅ <b>{r['name']}</b> → دریافت {r['count']} خبر")
         elif r["status"] == "fallback":
-            report_lines.append(f"🟡 <b>{r['name']}</b> → دریافت از fallback")
+            lines.append(f"🟡 <b>{r['name']}</b> → استفاده از fallback")
         else:
-            report_lines.append(f"❌ <b>{r['name']}</b> → <code>{r['error']}</code>")
+            lines.append(f"❌ <b>{r['name']}</b> → <code>{r['error']}</code>")
 
-    await bot.send_message(chat_id=chat_id, text="\n".join(report_lines)[:4096], parse_mode="HTML")
+    await bot.send_message(chat_id=chat_id, text="\n".join(lines)[:4096], parse_mode="HTML")
