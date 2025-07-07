@@ -4,7 +4,8 @@ from utils import (
     extract_full_content,
     extract_image_from_html,
     extract_video_link,
-    assess_content_quality,
+    summarize_text,
+    format_news,
     translate_text,
     is_text_english,
     parse_rss
@@ -15,10 +16,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
     report_lines = []
 
     for source in sources:
-        name = source.get("name")
+        name = source.get("name", "بدون‌نام")
         url = source.get("rss")
         if not url:
-            report_lines.append(f"⚠️ rss موجود نیست برای {name}")
+            report_lines.append(f"⚠️ rss ناموجود برای {name}")
             continue
 
         try:
@@ -36,15 +37,15 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
                 title = item.get("title", "")
                 full_text = extract_full_content(raw_html)
-                image_url = extract_image_from_html(raw_html)
-                video_url = extract_video_link(raw_html)
+                summary = summarize_text(full_text)
 
                 if is_text_english(title + " " + full_text):
                     title = translate_text(title)
-                    full_text = translate_text(full_text)
+                    summary = translate_text(summary)
 
-                caption = f"📰 {title}\n\n{full_text}\n🔗 {link}"
-                await bot.send_message(chat_id=chat_id, text=caption[:4096])
+                caption = format_news(name, title, summary, link)
+
+                await bot.send_message(chat_id=chat_id, text=caption[:4096], parse_mode="HTML")
                 sent_urls.add(link)
 
         except Exception as e:
