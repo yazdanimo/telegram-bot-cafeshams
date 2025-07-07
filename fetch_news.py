@@ -19,7 +19,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
     for source in sources:
         name = source.get("name", "بدون‌نام")
         rss_url = source.get("rss")
-        fallback_url = source.get("fallback")  # URL جایگزین اگر rss خطا داد
+        fallback_url = source.get("fallback")  # در صورت نیاز به منبع جایگزین
 
         try:
             items = parse_rss(rss_url)
@@ -47,6 +47,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                         summary = translate_text(summary)
 
                     caption = format_news(name, title, summary, link)
+
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], parse_mode="HTML")
                     sent_urls.add(link)
 
@@ -55,7 +56,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     continue
 
         except Exception as e:
-            # تلاش بازیابی با fallback URL
+            # تلاش بازیابی با fallback
             if fallback_url:
                 try:
                     async with aiohttp.ClientSession() as session:
@@ -74,7 +75,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             else:
                 report_results.append({ "name": name, "status": "error", "error": str(e) })
 
-    # گزارش نهایی
+    # گزارش نهایی زیبا
     report_lines = []
     for r in report_results:
         if r["status"] == "success":
