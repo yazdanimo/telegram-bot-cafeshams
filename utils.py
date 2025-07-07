@@ -1,14 +1,17 @@
-import json, re, feedparser, requests
+import json
+import re
+import feedparser
+import requests
 from bs4 import BeautifulSoup
 from langdetect import detect, DetectorFactory
 from translatepy import Translator
 
-translator = Translator()
 DetectorFactory.seed = 0
+translator = Translator()
 
 def load_sources():
     try:
-        with open("sources.json", "r", encoding="utf-8") as f:
+        with open("sources.json", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"❌ خطا در بارگذاری sources.json: {e}")
@@ -17,82 +20,65 @@ def load_sources():
 def parse_rss(url):
     try:
         feed = feedparser.parse(url)
-        items = []
-        for entry in feed.entries:
-            items.append({
+        return [
+            {
                 "title": entry.get("title", ""),
                 "link": entry.get("link", ""),
-                "summary": entry.get("summary", ""),
-                "published": entry.get("published", "")
-            })
-        return items
+                "summary": entry.get("summary", "")
+            }
+            for entry in feed.entries
+        ]
     except Exception as e:
         print(f"❌ خطا در parse_rss → {e}")
         return []
 
 def extract_full_content(html):
     soup = BeautifulSoup(html, "html.parser")
-    paragraphs = soup.find_all("p")
-    content = "\n".join(p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 40)
-    return content.strip()
-
-def extract_image_from_html(html):
-    soup = BeautifulSoup(html, "html.parser")
-    img = soup.find("img")
-    return img["src"] if img and img.has_attr("src") else None
-
-def extract_video_link(html):
-    soup = BeautifulSoup(html, "html.parser")
-    video = soup.find("video")
-    if video and video.has_attr("src"):
-        return video["src"]
-    iframe = soup.find("iframe")
-    if iframe and iframe.has_attr("src"):
-        return iframe["src"]
-    return None
+    paras = [p.get_text(strip=True) for p in soup.find_all("p") if len(p.get_text(strip=True)) > 40]
+    return "\n".join(paras).strip()
 
 def shorten_url(long_url):
     try:
-        res = requests.get(f"https://is.gd/create.php?format=simple&url={long_url}")
-        return res.text if res.status_code == 200 else long_url
+        r = requests.get(f"https://is.gd/create.php?format=simple&url={long_url}")
+        return r.text if r.status_code == 200 else long_url
     except:
         return long_url
 
 def summarize_text(text):
     sentences = re.split(r"[.؟!]", text)
-    full_sentences = [s.strip() for s in sentences if len(s.strip()) > 40]
-    return ". ".join(full_sentences[:3])  # فقط ۳ جملهٔ اول
+    full = [s.strip() for s in sentences if len(s.strip()) > 40]
+    return ". ".join(full[:3])
 
-def format_news(name, title, summary, link):
-    short_link = shorten_url(link)
-    return (
-        f"📡 {name}\n"
-        f"<b>{title}</b>\n\n"
-        f"{summary}\n\n"
-        f"🔗 <a href='{short_link}'>مشاهده خبر</a>\n\n"
-        f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
-    )
+def is_persian(text):
+    try:
+        return detect(text.strip()) == "fa"
+    except:
+        return False
 
 def is_text_english(text):
     try:
-        lang = detect(text.strip())
-        keywords = ["the", "and", "in", "of", "for", "with"]
-        has_keywords = any(kw in text.lower() for kw in keywords)
-        return lang == "en" or has_keywords
+        return detect(text.strip()) == "en"
     except:
         return False
 
 def translate_text(text):
     try:
         cleaned = summarize_text(text)
-        if not cleaned or len(cleaned.strip()) < 50:
-            print("⚠️ متن برای ترجمه کافی نیست")
+        if not cleaned:
             return text[:400]
-        if not is_text_english(cleaned):
-            print("⛔️ متن انگلیسی نیست → ترجمه نمی‌شه")
-            return cleaned[:400]
-        translated = translator.translate(cleaned, "Persian").result
-        return translated.strip()
+        result = translator.translate(cleaned, "Persian").result
+        return result.strip()
     except Exception as e:
-        print(f"❌ خطا در ترجمه: {e}")
+        print(f"❌ خطای واقعی در ترجمه: {e}")
         return text[:400]
+
+def format_news(name, title, summary, link):
+    short = shorten_url(link)
+    return (
+        f"📡 {name}\n"
+        f"<b>{title}</b>\n\n"
+        f"{summary}\n\n"
+        f"🔗 <a href='{short}'>مشاهده خبر</a>\n\n"
+        f"🆔 @cafeshamss\n"
+        f"کافه شمس ☕️🍪"
+    )
