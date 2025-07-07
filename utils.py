@@ -1,12 +1,22 @@
 from bs4 import BeautifulSoup
 from langdetect import detect, DetectorFactory
 from translatepy import Translator
+import json
 import re
 
 translator = Translator()
-DetectorFactory.seed = 0  # ثبات تشخیص زبان
+DetectorFactory.seed = 0
 
-# 🧠 استخراج متن مقاله
+# 🧩 خواندن لیست منابع خبری از فایل sources.json
+def load_sources():
+    try:
+        with open("sources.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"❌ خطا در بارگذاری sources.json: {e}")
+        return []
+
+# 📰 استخراج متن مقاله از HTML
 def extract_full_content(html):
     soup = BeautifulSoup(html, "html.parser")
     paragraphs = soup.find_all("p")
@@ -19,7 +29,7 @@ def extract_image_from_html(html):
     img = soup.find("img")
     return img["src"] if img and img.has_attr("src") else None
 
-# 🎥 استخراج لینک ویدیو
+# 🎥 استخراج لینک ویدیو از HTML
 def extract_video_link(html):
     soup = BeautifulSoup(html, "html.parser")
     video = soup.find("video")
@@ -30,24 +40,24 @@ def extract_video_link(html):
         return iframe["src"]
     return None
 
-# 🎯 بررسی کیفیت متن
+# 🎯 ارزیابی کیفیت محتوا
 def assess_content_quality(text):
     paragraphs = [p for p in text.split("\n") if len(p.strip()) > 40]
     return len(text) >= 300 and len(paragraphs) >= 2
 
-# 🧹 پاک‌سازی جمله‌های ناقص
+# ✂️ پاک‌سازی جمله‌های ناقص
 def clean_incomplete_sentences(text):
     sentences = re.split(r"[.؟!]", text)
     full_sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
     return ". ".join(full_sentences)
 
-# ✂️ اصلاح ترجمه‌های بریده‌شده
+# 🩹 اصلاح ترجمه‌های بریده یا ناقص
 def fix_cutoff_translation(text):
     if not text:
         return ""
     return re.sub(r"(؟|،|؛|\.|!)$", "", text.strip())
 
-# 🌍 تشخیص زبان انگلیسی هوشمند
+# 🌍 تشخیص زبان انگلیسی به‌صورت هوشمند
 def is_text_english(text):
     try:
         lang = detect(text.strip())
