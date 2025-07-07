@@ -3,8 +3,8 @@ import asyncio
 from telegram import Bot
 from fetch_news import fetch_and_send_news
 
-TOKEN = os.getenv("TOKEN", "توکن-ربات-را-اینجا-بگذارید")
-CHAT_ID = os.getenv("CHAT_ID", "آی‌دی-گروه-یا-کانال")
+TOKEN = os.getenv("TOKEN", "7957685811:AAG_gzimHewoCWteEIf0mOcLDAnMgOu6Z3M")
+CHAT_ID = os.getenv("CHAT_ID", "-1002514471809")
 
 bot = Bot(token=TOKEN)
 
