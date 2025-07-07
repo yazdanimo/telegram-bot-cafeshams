@@ -2,8 +2,8 @@ import asyncio
 from telegram import Bot
 from fetch_news import fetch_and_send_news
 
-TOKEN = "توکن ربات"
-CHAT_ID = "شناسه گروه یا کانال"
+TOKEN = "7957685811:AAG_gzimHewoCWteEIf0mOcLDAnMgOu6Z3M"
+CHAT_ID = "-1002514471809"
 bot = Bot(token=TOKEN)
 
 async def run_bot():
