@@ -1,6 +1,4 @@
-import json
-import re
-import feedparser
+import json, re, feedparser, requests
 from bs4 import BeautifulSoup
 from langdetect import detect, DetectorFactory
 from translatepy import Translator
@@ -53,19 +51,27 @@ def extract_video_link(html):
         return iframe["src"]
     return None
 
-def assess_content_quality(text):
-    paragraphs = [p for p in text.split("\n") if len(p.strip()) > 40]
-    return len(text) >= 300 and len(paragraphs) >= 2
+def shorten_url(long_url):
+    try:
+        res = requests.get(f"https://is.gd/create.php?format=simple&url={long_url}")
+        return res.text if res.status_code == 200 else long_url
+    except:
+        return long_url
 
-def clean_incomplete_sentences(text):
+def summarize_text(text):
     sentences = re.split(r"[.؟!]", text)
-    full_sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
-    return ". ".join(full_sentences)
+    full_sentences = [s.strip() for s in sentences if len(s.strip()) > 40]
+    return ". ".join(full_sentences[:3])  # فقط ۳ جملهٔ اول
 
-def fix_cutoff_translation(text):
-    if not text:
-        return ""
-    return re.sub(r"(؟|،|؛|\.|!)$", "", text.strip())
+def format_news(name, title, summary, link):
+    short_link = shorten_url(link)
+    return (
+        f"📡 {name}\n"
+        f"<b>{title}</b>\n\n"
+        f"{summary}\n\n"
+        f"🔗 <a href='{short_link}'>مشاهده خبر</a>\n\n"
+        f"🆔 @cafeshamss\nکافه شمس ☕️🍪"
+    )
 
 def is_text_english(text):
     try:
@@ -78,7 +84,7 @@ def is_text_english(text):
 
 def translate_text(text):
     try:
-        cleaned = clean_incomplete_sentences(text)
+        cleaned = summarize_text(text)
         if not cleaned or len(cleaned.strip()) < 50:
             print("⚠️ متن برای ترجمه کافی نیست")
             return text[:400]
@@ -86,8 +92,7 @@ def translate_text(text):
             print("⛔️ متن انگلیسی نیست → ترجمه نمی‌شه")
             return cleaned[:400]
         translated = translator.translate(cleaned, "Persian").result
-        fixed = fix_cutoff_translation(translated)
-        return fixed.strip() if fixed else translated.strip()
+        return translated.strip()
     except Exception as e:
         print(f"❌ خطا در ترجمه: {e}")
         return text[:400]
