@@ -4,3 +4,4 @@ translatepy
 beautifulsoup4
 langdetect
 python-telegram-bot==20.3
+requests
