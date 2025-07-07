@@ -1,13 +1,13 @@
+import json
+import re
+import feedparser
 from bs4 import BeautifulSoup
 from langdetect import detect, DetectorFactory
 from translatepy import Translator
-import json
-import re
 
 translator = Translator()
 DetectorFactory.seed = 0
 
-# 🧩 خواندن لیست منابع خبری از فایل sources.json
 def load_sources():
     try:
         with open("sources.json", "r", encoding="utf-8") as f:
@@ -16,20 +16,33 @@ def load_sources():
         print(f"❌ خطا در بارگذاری sources.json: {e}")
         return []
 
-# 📰 استخراج متن مقاله از HTML
+def parse_rss(url):
+    try:
+        feed = feedparser.parse(url)
+        items = []
+        for entry in feed.entries:
+            items.append({
+                "title": entry.get("title", ""),
+                "link": entry.get("link", ""),
+                "summary": entry.get("summary", ""),
+                "published": entry.get("published", "")
+            })
+        return items
+    except Exception as e:
+        print(f"❌ خطا در parse_rss → {e}")
+        return []
+
 def extract_full_content(html):
     soup = BeautifulSoup(html, "html.parser")
     paragraphs = soup.find_all("p")
     content = "\n".join(p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 40)
     return content.strip()
 
-# 🖼️ استخراج تصویر اول مقاله
 def extract_image_from_html(html):
     soup = BeautifulSoup(html, "html.parser")
     img = soup.find("img")
     return img["src"] if img and img.has_attr("src") else None
 
-# 🎥 استخراج لینک ویدیو از HTML
 def extract_video_link(html):
     soup = BeautifulSoup(html, "html.parser")
     video = soup.find("video")
@@ -40,24 +53,20 @@ def extract_video_link(html):
         return iframe["src"]
     return None
 
-# 🎯 ارزیابی کیفیت محتوا
 def assess_content_quality(text):
     paragraphs = [p for p in text.split("\n") if len(p.strip()) > 40]
     return len(text) >= 300 and len(paragraphs) >= 2
 
-# ✂️ پاک‌سازی جمله‌های ناقص
 def clean_incomplete_sentences(text):
     sentences = re.split(r"[.؟!]", text)
     full_sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
     return ". ".join(full_sentences)
 
-# 🩹 اصلاح ترجمه‌های بریده یا ناقص
 def fix_cutoff_translation(text):
     if not text:
         return ""
     return re.sub(r"(؟|،|؛|\.|!)$", "", text.strip())
 
-# 🌍 تشخیص زبان انگلیسی به‌صورت هوشمند
 def is_text_english(text):
     try:
         lang = detect(text.strip())
@@ -67,7 +76,6 @@ def is_text_english(text):
     except:
         return False
 
-# 🌐 ترجمه حرفه‌ای با کنترل کیفیت
 def translate_text(text):
     try:
         cleaned = clean_incomplete_sentences(text)
