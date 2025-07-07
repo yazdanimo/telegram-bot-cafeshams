@@ -1,14 +1,18 @@
+import os
 import asyncio
 from telegram import Bot
 from fetch_news import fetch_and_send_news
 
-TOKEN = "7957685811:AAG_gzimHewoCWteEIf0mOcLDAnMgOu6Z3M"
-CHAT_ID = "-1002514471809"
+TOKEN = os.getenv("TOKEN", "توکن-ربات-را-اینجا-بگذارید")
+CHAT_ID = os.getenv("CHAT_ID", "آی‌دی-گروه-یا-کانال")
+
 bot = Bot(token=TOKEN)
 
-async def run_bot():
+async def main_loop():
     sent_urls = set()
-    await fetch_and_send_news(bot, CHAT_ID, sent_urls)
+    while True:
+        await fetch_and_send_news(bot, CHAT_ID, sent_urls)
+        await asyncio.sleep(10 * 60)  # هر ۱۰ دقیقه یکبار اجرا
 
 if __name__ == "__main__":
-    asyncio.run(run_bot())
+    asyncio.run(main_loop())
