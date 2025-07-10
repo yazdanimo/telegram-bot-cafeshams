@@ -26,7 +26,7 @@ async def main_loop():
         await fetch_and_send_news(bot, CHAT_ID, sent_urls)
         save_sent_urls(sent_urls)
         print("🕒 پایان یک دور اجرا، صبر برای دور بعد...")
-        await asyncio.sleep(600)
+        await asyncio.sleep(200)
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
