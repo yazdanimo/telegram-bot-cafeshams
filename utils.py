@@ -1,5 +1,3 @@
-# File: utils.py
-
 import feedparser
 import re
 import json
@@ -26,8 +24,9 @@ def extract_full_content(html):
     for tag in soup(["script", "style", "header", "footer", "nav"]):
         tag.decompose()
 
+    # تلاش برای پیدا کردن محتوای اصلی
     content = ""
-    for section in ["article", "main", "div", "section"]:
+    for section in ("article", "main", "div", "section"):
         el = soup.find(section)
         if el:
             content = el.get_text(separator=" ", strip=True)
@@ -36,19 +35,17 @@ def extract_full_content(html):
     if not content:
         content = soup.get_text(separator=" ", strip=True)
 
-    # حذف خطوط خیلی کوتاه
+    # فیلتر خطوط خیلی کوتاه
     lines = [ln.strip() for ln in content.splitlines() if len(ln.strip()) > 60]
     return " ".join(lines)
 
 def summarize_text(text):
-    # دو جمله اول را برمی‌گرداند
+    # جدا کردن جملات با نقطه/علامت سؤال/تعجب
     sentences = re.split(r"(?<=[.!?])\s+", text)
     if len(sentences) >= 2:
         return " ".join(sentences[:2]).strip()
-    return text[:200].strip() + "..."
-
-def is_english(text):
-    return bool(re.search(r"[A-Za-z]", text))
+    # اگر کمتر بود، حداکثر ۲۰۰ کاراکتر
+    return text.strip()[:200] + "..."
 
 def translate_text(text):
     try:
@@ -63,8 +60,11 @@ def translate_text(text):
         print(f"⚠️ ترجمه انجام نشد → {e}")
     return text
 
+def is_english(text):
+    return bool(re.search(r"[A-Za-z]", text))
+
 def format_news(source, title, summary, link):
-    # اگر انگلیسی بود ترجمه کن
+    # در صورت انگلیسی بودن عنوان یا خلاصه، ترجمه می‌کنیم
     if is_english(title):
         title = translate_text(title)
     if is_english(summary):
