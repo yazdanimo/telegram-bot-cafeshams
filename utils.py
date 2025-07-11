@@ -20,11 +20,10 @@ def parse_rss(url):
 def extract_full_content(html):
     soup = BeautifulSoup(html, "html.parser")
 
-    # حذف بخش‌های اضافی
+    # حذف بخش‌های غیرمفید
     for tag in soup(["script", "style", "header", "footer", "nav"]):
         tag.decompose()
 
-    # تلاش برای پیدا کردن مقاله یا محتوای اصلی
     content = ""
     for tag_name in ["article", "main", "div", "section"]:
         el = soup.find(tag_name)
@@ -35,13 +34,12 @@ def extract_full_content(html):
     if not content:
         content = soup.get_text(separator=" ", strip=True)
 
-    # فیلتر خطوط خیلی کوتاه
     lines = [line.strip() for line in content.splitlines() if len(line.strip()) > 40]
-    return "\n".join(lines[:15])
+    return "\n".join(lines[:15]) or "متن کامل قابل استخراج نبود."
 
 def summarize_text(text):
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return "\n".join(lines[:3])  # سه خط اول به عنوان خلاصه
+    return "\n".join(lines[:3]) or "خلاصه‌ای در دسترس نیست."
 
 def format_news(source, title, summary, link):
     return (
@@ -56,13 +54,13 @@ def translate_text(text):
         response = requests.post(
             "https://translate.argosopentech.com/translate",
             json={"q": text, "source": "en", "target": "fa"},
-            timeout=10
+            timeout=7
         )
-        if response.status_code == 200 and "translatedText" in response.json():
-            return response.json()["translatedText"]
+        if response.status_code == 200:
+            return response.json().get("translatedText", text)
     except Exception as e:
-        print(f"⚠️ خطا در ترجمه → {e}")
-    return text  # اگر ترجمه شکست خورد، متن اصلی بازگردانده می‌شود
+        print(f"⚠️ ترجمه انجام نشد → {e}")
+    return text  # بازگشت به متن اصلی در صورت خطا
 
 def is_persian(text):
     return bool(re.search(r"[\u0600-\u06FF]", text))
