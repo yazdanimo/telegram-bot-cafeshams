@@ -8,6 +8,8 @@
   { "name": "Hamshahri Online", "rss": "https://www.hamshahrionline.ir/rss", "fallback": "https://www.hamshahrionline.ir", "category": "social" },
   { "name": "Khabar Online", "rss": "https://www.khabaronline.ir/rss", "fallback": "https://www.khabaronline.ir", "category": "social" },
   { "name": "Mashregh News", "rss": "https://www.mashreghnews.ir/rss", "fallback": "https://www.mashreghnews.ir", "category": "political" },
+  { "name": "Entekhab News", "rss": "https://www.entekhab.ir/fa/rss/allnews", "fallback": "https://www.entekhab.ir", "category": "news" },
+  { "name": "Iran Front Page", "rss": "https://ifpnews.com/feed", "fallback": "https://ifpnews.com", "category": "international" },
   { "name": "ABC News", "rss": "https://abcnews.go.com/abcnews/topstories", "fallback": "https://abcnews.go.com", "category": "international" },
   { "name": "CNN Top Stories", "rss": "http://rss.cnn.com/rss/cnn_topstories.rss", "fallback": "https://www.cnn.com", "category": "international" },
   { "name": "The Guardian", "rss": "https://www.theguardian.com/world/rss", "fallback": "https://www.theguardian.com/world", "category": "international" },
@@ -16,6 +18,7 @@
   { "name": "The Atlantic", "rss": "https://www.theatlantic.com/feed/all", "fallback": "https://www.theatlantic.com", "category": "analysis" },
   { "name": "Brookings Institution", "rss": "https://www.brookings.edu/feed", "fallback": "https://www.brookings.edu", "category": "analysis" },
   { "name": "Carnegie Endowment", "rss": "https://carnegieendowment.org/rss", "fallback": "https://carnegieendowment.org", "category": "analysis" },
-  { "name": "Iran Front Page", "rss": "https://ifpnews.com/feed", "fallback": "https://ifpnews.com", "category": "international" },
-  { "name": "Entekhab News", "rss": "https://www.entekhab.ir/fa/rss/allnews", "fallback": "https://www.entekhab.ir", "category": "news" }
+  { "name": "Reuters", "rss": "https://feeds.reuters.com/reuters/topNews", "fallback": "https://www.reuters.com", "category": "international" },
+  { "name": "AP News", "rss": "https://apnews.com/rss", "fallback": "https://apnews.com", "category": "international" },
+  { "name": "BBC World", "rss": "https://feeds.bbci.co.uk/news/world/rss.xml", "fallback": "https://www.bbc.com/news", "category": "international" }
 ]
