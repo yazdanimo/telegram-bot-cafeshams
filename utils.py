@@ -1,3 +1,5 @@
+# File: utils.py
+
 import feedparser
 import re
 import json
@@ -24,28 +26,42 @@ def extract_full_content(html):
     for tag in soup(["script", "style", "header", "footer", "nav"]):
         tag.decompose()
 
-    # تلاش برای پیدا کردن محتوای اصلی
+    # تلاش برای پیدا کردن محتویات اصلی
     content = ""
     for section in ("article", "main", "div", "section"):
         el = soup.find(section)
         if el:
-            content = el.get_text(separator=" ", strip=True)
+            content = el.get_text(separator="\n", strip=True)
             break
 
     if not content:
-        content = soup.get_text(separator=" ", strip=True)
+        content = soup.get_text(separator="\n", strip=True)
 
-    # فیلتر خطوط خیلی کوتاه
-    lines = [ln.strip() for ln in content.splitlines() if len(ln.strip()) > 60]
-    return " ".join(lines)
+    # فیلتر خطوط غیرمفید و متادیتا (لینک یا تاریخ)
+    raw_lines = content.splitlines()
+    filtered = []
+    for ln in raw_lines:
+        ln = ln.strip()
+        if len(ln) < 60:
+            continue
+        if ln.startswith("http"):
+            continue
+        # حذف خطوط تاریخ فارسی ساده (مثال: "۲۱ تیر ۱۴۰۴، ۱:۱۰")
+        if re.match(r"^\d{1,2}\s+\w+\s+\d{4}", ln):
+            continue
+        filtered.append(ln)
+
+    return " ".join(filtered)
 
 def summarize_text(text):
-    # جدا کردن جملات با نقطه/علامت سؤال/تعجب
+    # جدا کردن جملات و برگرداندن دو جمله اول
     sentences = re.split(r"(?<=[.!?])\s+", text)
     if len(sentences) >= 2:
         return " ".join(sentences[:2]).strip()
-    # اگر کمتر بود، حداکثر ۲۰۰ کاراکتر
-    return text.strip()[:200] + "..."
+    return text[:200].strip() + "..."
+
+def is_english(text):
+    return bool(re.search(r"[A-Za-z]", text))
 
 def translate_text(text):
     try:
@@ -60,11 +76,8 @@ def translate_text(text):
         print(f"⚠️ ترجمه انجام نشد → {e}")
     return text
 
-def is_english(text):
-    return bool(re.search(r"[A-Za-z]", text))
-
 def format_news(source, title, summary, link):
-    # در صورت انگلیسی بودن عنوان یا خلاصه، ترجمه می‌کنیم
+    # ترجمه عناوین یا خلاصه انگلیسی
     if is_english(title):
         title = translate_text(title)
     if is_english(summary):
