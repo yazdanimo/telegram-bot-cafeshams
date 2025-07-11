@@ -7,7 +7,6 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
-# آدرس API ترجمه رایگان (LibreTranslate)
 TRANSLATE_API_URL = "https://libretranslate.de/translate"
 
 def load_sources(path="sources.json"):
@@ -37,13 +36,19 @@ def extract_full_content(html):
     if not content:
         content = soup.get_text(separator=" ", strip=True)
 
+    # حذف خطوط خیلی کوتاه
     lines = [ln.strip() for ln in content.splitlines() if len(ln.strip()) > 60]
-    return "\n".join(lines[:10]) or "متن قابل استخراج نبود."
+    return " ".join(lines)
 
 def summarize_text(text):
-    paragraphs = text.split("\n\n")
-    good = [p.strip() for p in paragraphs if len(p.strip()) > 80]
-    return "\n\n".join(good[:2]) or "خلاصه‌ای در دسترس نیست."
+    # دو جمله اول را برمی‌گرداند
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    if len(sentences) >= 2:
+        return " ".join(sentences[:2]).strip()
+    return text[:200].strip() + "..."
+
+def is_english(text):
+    return bool(re.search(r"[A-Za-z]", text))
 
 def translate_text(text):
     try:
@@ -58,18 +63,17 @@ def translate_text(text):
         print(f"⚠️ ترجمه انجام نشد → {e}")
     return text
 
-def is_persian(text):
-    return bool(re.search(r"[\u0600-\u06FF]", text))
-
 def format_news(source, title, summary, link):
-    # همیشه عنوان و خلاصه را با ترجمه ارسال کن
-    title_fa   = translate_text(title)
-    summary_fa = translate_text(summary)
+    # اگر انگلیسی بود ترجمه کن
+    if is_english(title):
+        title = translate_text(title)
+    if is_english(summary):
+        summary = translate_text(summary)
 
     return (
         f"📰 <b>{source}</b>\n\n"
-        f"<b>{title_fa.strip()}</b>\n\n"
-        f"{summary_fa.strip()}\n\n"
+        f"<b>{title.strip()}</b>\n\n"
+        f"{summary.strip()}\n\n"
         f"🔗 <a href='{link}'>مشاهده کامل خبر</a>\n"
         f"🆔 @cafeshamss     \n"
         f"کافه شمس ☕️🍪"
