@@ -15,13 +15,11 @@ from utils import (
 BAD_LINKS_FILE = "bad_links.json"
 
 def load_bad_links():
-    if os.path.exists(BAD_LINKS_FILE):
-        try:
-            with open(BAD_LINKS_FILE, "r") as f:
-                return set(json.load(f))
-        except:
-            return set()
-    return set()
+    try:
+        with open(BAD_LINKS_FILE, "r") as f:
+            return set(json.load(f))
+    except:
+        return set()
 
 def save_bad_links(bad_links):
     with open(BAD_LINKS_FILE, "w") as f:
@@ -33,12 +31,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
     fallback_sent = set()
     report = []
 
-    print("🚀 دیباگ آغاز شد: بررسی منابع خبری")
-
     for src in sources:
         name = src.get("name", "بدون‌نام")
         rss_url = src.get("rss")
         fallback = src.get("fallback")
+        sent_count = 0
 
         print(f"⏳ شروع بررسی {name}")
 
@@ -49,8 +46,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             if not items:
                 raise Exception("هیچ خبری دریافت نشد")
 
-            report.append({ "name": name, "status": "success", "count": len(items) })
-
             for item in items[:3]:
                 link = item.get("link")
                 if not link or link in sent_urls or link in bad_links:
@@ -58,14 +53,12 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     continue
 
                 try:
-                    print(f"🔗 تلاش برای دریافت: {link}")
                     async with aiohttp.ClientSession() as session:
                         async with session.get(link, timeout=10) as res:
                             if res.status != 200:
                                 print(f"❌ لینک خراب ({res.status}): {link}")
                                 bad_links.add(link)
-                                report.append({ "name": name, "status": "http_error", "error": f"{res.status} → {link}" })
-                                break
+                                continue
                             raw = await res.text()
 
                     title = item.get("title", "")
@@ -78,22 +71,20 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
                     caption = format_news(name, title, summary, link)
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], parse_mode="HTML")
-                    print(f"✅ خبر ارسال شد: {link}")
+
                     sent_urls.add(link)
+                    sent_count += 1
                     await asyncio.sleep(3)
 
                 except Exception as e:
                     print(f"⚠️ خطا در ارسال {link}: {e}")
-                    report.append({ "name": name, "status": "send_error", "error": str(e) })
 
         except Exception as e:
             print(f"⚠️ خطا در دریافت از {name}: {e}")
-            report.append({ "name": name, "status": "error", "error": str(e) })
 
-            # کنترل ارسال fallback تکراری
+            # fallback اجرا اگر لینک‌ها خراب بودن
             if fallback and fallback not in sent_urls and fallback not in fallback_sent and fallback not in bad_links:
                 try:
-                    print(f"🟡 تلاش با fallback برای {name}")
                     async with aiohttp.ClientSession() as session:
                         async with session.get(fallback, timeout=10) as res:
                             if res.status != 200:
@@ -103,33 +94,24 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     title = f"{name} - گزارش جایگزین"
                     full_text = extract_full_content(raw)
                     summary = summarize_text(full_text)
-                    caption = format_news(name, title, summary, fallback)
 
+                    caption = format_news(name, title, summary, fallback)
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], parse_mode="HTML")
-                    print(f"🟢 ارسال fallback موفق برای {name}")
                     sent_urls.add(fallback)
                     fallback_sent.add(fallback)
-                    report.append({ "name": name, "status": "fallback", "count": 1 })
+                    print(f"🟢 ارسال fallback موفق برای {name}")
                     await asyncio.sleep(3)
 
                 except Exception as f_err:
-                    print(f"❌ خطای fallback برای {name}: {f_err}")
-                    report.append({ "name": name, "status": "fallback_error", "error": str(f_err) })
-            else:
-                print(f"🔁 لینک fallback قبلاً استفاده شده یا خراب: {fallback}")
+                    print(f"❌ خطا در fallback {name}: {f_err}")
+                    bad_links.add(fallback)
 
-        print(f"✅ پایان بررسی {name}\n")
+            else:
+                print(f"🔁 fallback قبلاً استفاده شده یا خراب: {fallback}")
+
+        if sent_count == 0:
+            await bot.send_message(chat_id=chat_id, text=f"❗️هیچ خبری ارسال نشد از {name} — لینک‌ها شاید خراب یا فیلتر بودن.")
+        else:
+            print(f"✅ پایان بررسی {name} — {sent_count} خبر ارسال شد\n")
 
     save_bad_links(bad_links)
-
-    lines = []
-    for r in report:
-        status = r["status"]
-        if status == "success":
-            lines.append(f"✅ <b>{r['name']}</b> → دریافت {r['count']} خبر")
-        elif status == "fallback":
-            lines.append(f"🟡 <b>{r['name']}</b> → استفاده از fallback")
-        else:
-            lines.append(f"❌ <b>{r['name']}</b> → <code>{r.get('error')}</code>")
-
-    await bot.send_message(chat_id=chat_id, text="\n".join(lines)[:4096], parse_mode="HTML")
