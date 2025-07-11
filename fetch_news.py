@@ -120,7 +120,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
     save_bad_links(bad_links)
 
-    # گزارش نهایی برای تلگرام
+    # گزارش نهایی به گروه یا کانال
     lines = []
     for r in report:
         status = r["status"]
