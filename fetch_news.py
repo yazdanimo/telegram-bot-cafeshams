@@ -29,7 +29,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
     sources = load_sources()
     bad_links = load_bad_links()
     fallback_sent = set()
-    report = []
 
     for src in sources:
         name = src.get("name", "بدون‌نام")
@@ -56,7 +55,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     async with aiohttp.ClientSession() as session:
                         async with session.get(link, timeout=10) as res:
                             if res.status != 200:
-                                print(f"❌ لینک خراب ({res.status}): {link}")
+                                print(f"❌ وضعیت HTTP: {res.status} → {link}")
                                 bad_links.add(link)
                                 continue
                             raw = await res.text()
@@ -78,11 +77,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
                 except Exception as e:
                     print(f"⚠️ خطا در ارسال {link}: {e}")
+                    bad_links.add(link)
 
         except Exception as e:
             print(f"⚠️ خطا در دریافت از {name}: {e}")
 
-            # fallback اجرا اگر لینک‌ها خراب بودن
             if fallback and fallback not in sent_urls and fallback not in fallback_sent and fallback not in bad_links:
                 try:
                     async with aiohttp.ClientSession() as session:
@@ -110,7 +109,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 print(f"🔁 fallback قبلاً استفاده شده یا خراب: {fallback}")
 
         if sent_count == 0:
-            await bot.send_message(chat_id=chat_id, text=f"❗️هیچ خبری ارسال نشد از {name} — لینک‌ها شاید خراب یا فیلتر بودن.")
+            await bot.send_message(chat_id=chat_id, text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد — احتمالاً تمام لینک‌ها خراب یا فیلتر بودن.")
         else:
             print(f"✅ پایان بررسی {name} — {sent_count} خبر ارسال شد\n")
 
