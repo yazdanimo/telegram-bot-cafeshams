@@ -34,14 +34,14 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
         name = src.get("name", "بدون‌نام")
         rss_url = src.get("rss")
         fallback = src.get("fallback")
+        category = src.get("category", "other")
         sent_count = 0
 
-        print(f"⏳ شروع بررسی {name}")
+        print(f"⏳ شروع بررسی {name} [{category}]")
 
         try:
             items = parse_rss(rss_url)
             print(f"📥 دریافت {len(items)} آیتم از {name}")
-
             if not items:
                 raise Exception("هیچ خبری دریافت نشد")
 
@@ -76,12 +76,13 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     await asyncio.sleep(3)
 
                 except Exception as e:
-                    print(f"⚠️ خطا در ارسال {link}: {e}")
+                    print(f"⚠️ خطا در پردازش {link}: {e}")
                     bad_links.add(link)
 
         except Exception as e:
             print(f"⚠️ خطا در دریافت از {name}: {e}")
 
+            # Fallback
             if fallback and fallback not in sent_urls and fallback not in fallback_sent and fallback not in bad_links:
                 try:
                     async with aiohttp.ClientSession() as session:
@@ -96,6 +97,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
                     caption = format_news(name, title, summary, fallback)
                     await bot.send_message(chat_id=chat_id, text=caption[:4096], parse_mode="HTML")
+
                     sent_urls.add(fallback)
                     fallback_sent.add(fallback)
                     print(f"🟢 ارسال fallback موفق برای {name}")
@@ -104,12 +106,12 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 except Exception as f_err:
                     print(f"❌ خطا در fallback {name}: {f_err}")
                     bad_links.add(fallback)
-
             else:
                 print(f"🔁 fallback قبلاً استفاده شده یا خراب: {fallback}")
 
+        # گزارش ارسال‌ها
         if sent_count == 0:
-            await bot.send_message(chat_id=chat_id, text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد — احتمالاً تمام لینک‌ها خراب یا فیلتر بودن.")
+            await bot.send_message(chat_id=chat_id, text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد — احتمالاً لینک‌ها خراب یا فیلتر بودن.")
         else:
             print(f"✅ پایان بررسی {name} — {sent_count} خبر ارسال شد\n")
 
