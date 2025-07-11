@@ -3,12 +3,12 @@ import json
 from datetime import datetime
 from telegram import Bot
 
-from fetch_news import fetch_and_send_news          # منابع عمومی
-from fetch_tasnim import fetch_tasnim_news          # منبع مستقل تسنیم
-from editorial import generate_editorial            # سرمقاله روزانه
+from fetch_news import fetch_and_send_news
+from fetch_tasnim import fetch_tasnim_news
+from editorial import generate_editorial
 
-TOKEN = "توکن ربات رو اینجا بذار"
-CHAT_ID_NEWS = "-100xxxxxxxxxx"         # کانال یا گروه خبری اصلی
+TOKEN = "توکن ربات خودت"
+CHAT_ID_NEWS = "-100xxxxxxxxxx"         # گروه یا کانال خبری
 CHAT_ID_EDITORIAL = "-100xxxxxxxxxx"    # گروه سردبیری
 
 SENT_URLS_FILE = "sent_urls.json"
@@ -25,27 +25,26 @@ def save_sent_urls(sent_urls):
         json.dump(list(sent_urls), f)
 
 async def main_loop():
-    print("🚀 ربات همه‌چی راه‌اندازی شد")
+    print("🚀 شروع ربات همه‌چی")
     bot = Bot(token=TOKEN)
     sent_urls = load_sent_urls()
 
     while True:
         try:
-            print("✅ مرحله 1: دریافت منابع عمومی آغاز شد")
+            print("✅ دریافت منابع عمومی آغاز شد")
             await fetch_and_send_news(bot, CHAT_ID_NEWS, sent_urls)
-            print("✅ مرحله 2: دریافت منابع عمومی انجام شد")
+            print("✅ منابع عمومی بررسی شدند")
 
-            print("⏳ مرحله 3: بررسی منبع اختصاصی Tasnim News")
+            print("⏳ بررسی منبع Tasnim News آغاز شد")
             await fetch_tasnim_news(bot, CHAT_ID_NEWS, sent_urls)
-            print("✅ مرحله 4: بررسی Tasnim انجام شد")
+            print("✅ منبع Tasnim بررسی شد")
 
         except Exception as e:
-            print(f"❌ خطا در دریافت خبرها → {e}")
-            await bot.send_message(chat_id=CHAT_ID_NEWS, text=f"❗️ خطای دریافت خبرها → {e}")
+            print(f"❌ خطا در بررسی خبرها → {e}")
+            await bot.send_message(chat_id=CHAT_ID_NEWS, text=f"⚠️ خطای دریافت خبرها → {e}")
 
         save_sent_urls(sent_urls)
 
-        # 🕗 تولید سرمقاله روزانه ساعت ۲۰
         now = datetime.now()
         if now.hour == 20 and now.minute == 0:
             try:
@@ -53,16 +52,15 @@ async def main_loop():
                 await generate_editorial(bot, CHAT_ID_EDITORIAL)
             except Exception as ed_err:
                 print(f"❌ خطا در تولید سرمقاله → {ed_err}")
-                await bot.send_message(chat_id=CHAT_ID_EDITORIAL, text=f"❗️ خطای تولید سرمقاله → {ed_err}")
+                await bot.send_message(chat_id=CHAT_ID_EDITORIAL, text=f"⚠️ خطا در سرمقاله → {ed_err}")
 
-        # 📤 پایان دور اجرا
         await bot.send_message(chat_id=CHAT_ID_NEWS, text="🕒 چرخه اجرا کامل شد، صبر برای دور بعدی...")
-        print("🕒 چرخه کامل شد، انتظار برای ۲۰۰ ثانیه...\n")
+        print("🕒 پایان دور اجرا، انتظار برای ۲۰۰ ثانیه...\n")
 
-        await asyncio.sleep(200)  # زمان انتظار بین اجراها
+        await asyncio.sleep(200)
 
 if __name__ == "__main__":
     try:
         asyncio.run(main_loop())
     except Exception as e:
-        print(f"❌ خطای کلی ربات → {e}")
+        print(f"❌ خطای اجرای اصلی → {e}")
