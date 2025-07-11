@@ -1,5 +1,6 @@
 import aiohttp
 import asyncio
+import json
 from utils import (
     extract_full_content,
     summarize_text,
@@ -45,11 +46,11 @@ async def fetch_tasnim_news(bot, chat_id, sent_urls):
                 continue
 
             try:
-                print(f"🔗 تلاش برای دریافت: {link}")
+                print(f"🔗 دریافت محتوای خبر: {link}")
                 async with aiohttp.ClientSession() as session:
                     async with session.get(link, timeout=10) as res:
                         if res.status != 200:
-                            print(f"❌ لینک خراب ({res.status}): {link}")
+                            print(f"❌ وضعیت HTTP: {res.status} → {link}")
                             bad_links.add(link)
                             continue
                         raw = await res.text()
@@ -64,19 +65,19 @@ async def fetch_tasnim_news(bot, chat_id, sent_urls):
 
                 caption = format_news(name, title, summary, link)
                 await bot.send_message(chat_id=chat_id, text=caption[:4096], parse_mode="HTML")
-                print(f"✅ خبر ارسال شد: {link}")
+                print(f"✅ ارسال موفق خبر: {link}")
                 sent_urls.add(link)
                 await asyncio.sleep(3)
 
             except Exception as e:
                 print(f"⚠️ خطا در ارسال {link}: {e}")
 
-    except Exception as e:
-        print(f"⚠️ خطا در دریافت از {name}: {e}")
+    except Exception as rss_err:
+        print(f"⚠️ خطا در RSS {name}: {rss_err}")
 
         if fallback not in sent_urls and fallback not in bad_links:
             try:
-                print(f"🟡 تلاش با fallback برای {name}")
+                print(f"🟡 اجرای fallback برای {name}")
                 async with aiohttp.ClientSession() as session:
                     async with session.get(fallback, timeout=10) as res:
                         if res.status != 200:
@@ -94,9 +95,9 @@ async def fetch_tasnim_news(bot, chat_id, sent_urls):
                 await asyncio.sleep(3)
 
             except Exception as f_err:
-                print(f"❌ خطای fallback برای {name}: {f_err}")
+                print(f"❌ خطا در fallback {name}: {f_err}")
         else:
-            print(f"🔁 لینک fallback قبلاً استفاده شده یا خراب: {fallback}")
+            print(f"🔁 fallback قبلاً ارسال شده یا خراب: {fallback}")
 
     save_bad_links(bad_links)
     print(f"✅ پایان بررسی {name}")
