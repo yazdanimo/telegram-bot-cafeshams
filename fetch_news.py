@@ -15,7 +15,7 @@ from utils import (
 )
 
 BAD_LINKS_FILE = "bad_links.json"
-SEND_INTERVAL  = 3   # ثانیه فاصله بین هر پیام
+SEND_INTERVAL  = 3
 _last_send     = 0
 
 def load_bad_links():
@@ -148,7 +148,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
     save_bad_links(bad_links)
 
-    # ساخت و ارسال جدول گزارش
+    # ساخت و ارسال جدول گزارش monospace
     headers = ["منبع", "دریافت", "ارسال", "خطا"]
     widths  = {h: len(h) for h in headers}
     for row in stats:
