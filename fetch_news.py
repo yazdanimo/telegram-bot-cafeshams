@@ -3,6 +3,7 @@
 import aiohttp
 import asyncio
 import json
+import time
 from urllib.parse import urlparse
 
 from utils import (
@@ -14,6 +15,8 @@ from utils import (
 )
 
 BAD_LINKS_FILE = "bad_links.json"
+SEND_INTERVAL = 3  # حداقل فاصله بین ارسال پیام‌ها (ثانیه)
+_last_send = 0
 
 def load_bad_links():
     try:
@@ -25,6 +28,19 @@ def load_bad_links():
 def save_bad_links(bad_links):
     with open(BAD_LINKS_FILE, "w") as f:
         json.dump(list(bad_links), f)
+
+async def safe_send(bot, chat_id, text, **kwargs):
+    """
+    ارسال پیام با رعایت محدودیت Flood Control تلگرام
+    """
+    global _last_send
+    now = time.time()
+    wait = SEND_INTERVAL - (now - _last_send)
+    if wait > 0:
+        await asyncio.sleep(wait)
+    msg = await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+    _last_send = time.time()
+    return msg
 
 async def fetch_and_send_news(bot, chat_id, sent_urls):
     sources   = load_sources()
@@ -59,17 +75,18 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
                     full    = extract_full_content(html)
                     summ    = summarize_text(full)
-                    title   = item.get("title", "")
+                    title   = item.get("title", "").strip()
                     caption = format_news(name, title, summ, link)
 
-                    await bot.send_message(
-                        chat_id=chat_id,
+                    await safe_send(
+                        bot, chat_id,
                         text=caption[:4096],
                         parse_mode="HTML"
                     )
+
                     sent_urls.add(link)
                     sent_cnt += 1
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(1)  # مابین لینک‌ها یک ثانیه فاصله
 
                 except Exception as e:
                     print(f"⚠️ خطا در پردازش {link} → {e}")
@@ -78,7 +95,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
         except Exception as e:
             print(f"⚠️ خطا در دریافت از {name} → {e}")
 
-            # fallback فقط برای URL مقاله (نه صفحه اصلی)
+            # fallback فقط برای URL مقاله (پوشه path خالی نباشد)
             if fallback:
                 path = urlparse(fallback).path or "/"
                 if path not in ("/", "") and fallback not in bad_links:
@@ -98,22 +115,23 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                             fallback
                         )
 
-                        await bot.send_message(
-                            chat_id=chat_id,
+                        await safe_send(
+                            bot, chat_id,
                             text=caption[:4096],
                             parse_mode="HTML"
                         )
+
                         sent_cnt += 1
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(1)
 
                     except Exception as fe:
                         print(f"❌ خطا در fallback {name} → {fe}")
                         bad_links.add(fallback)
 
-        # اگر هیچ خبری ارسال نشد
+        # گزارش نهایی هر منبع
         if sent_cnt == 0:
-            await bot.send_message(
-                chat_id=chat_id,
+            await safe_send(
+                bot, chat_id,
                 text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد."
             )
         else:
