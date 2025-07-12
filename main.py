@@ -45,7 +45,7 @@ async def main_loop():
 
         save_set(sent_urls, SENT_URLS)
         save_set(sent_hashes, SENT_HASHES)
-        await asyncio.sleep(200)
+        await asyncio.sleep(170)
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
