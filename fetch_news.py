@@ -13,15 +13,15 @@ BAD_LINKS_FILE = "bad_links.json"
 SEND_INTERVAL  = 3
 LAST_SEND      = 0
 
-def load_set(file):
+def load_set(path):
     try:
-        with open(file, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return set(json.load(f))
     except:
         return set()
 
-def save_set(data, file):
-    with open(file, "w", encoding="utf-8") as f:
+def save_set(data, path):
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(list(data), f, ensure_ascii=False, indent=2)
 
 def normalize_url(url):
@@ -31,7 +31,7 @@ def normalize_url(url):
 
 async def safe_send(bot, chat_id, text, **kwargs):
     global LAST_SEND
-    now = time.time()
+    now  = time.time()
     wait = SEND_INTERVAL - (now - LAST_SEND)
     if wait > 0:
         await asyncio.sleep(wait)
@@ -58,7 +58,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
             total = len(items)
             print("📥 دریافت", total, "آیتم از", name)
             if total == 0:
-                raise Exception()
+                raise Exception("هیچ آیتمی از RSS دریافت نشد")
 
             for item in items[:3]:
                 link = item.get("link")
@@ -95,9 +95,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                     bad_links.add(u)
                     err += 1
 
-        except:
-            print("⚠️ خطا در دریافت از", name)
+        except Exception as e:
+            print("⚠️ خطا در دریافت از", name, "→", e)
             err += 1
+
             if fb:
                 path = urlparse(fb).path or "/"
                 if path not in ("/","") and fb not in bad_links:
@@ -105,7 +106,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                         async with aiohttp.ClientSession() as session:
                             async with session.get(fb, timeout=10) as res:
                                 if res.status != 200:
-                                    raise Exception()
+                                    raise Exception(f"HTTP {res.status}")
                                 html = await res.text()
 
                         full = extract_full_content(html)
@@ -114,8 +115,9 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                         await safe_send(bot, chat_id, cap, parse_mode="HTML")
                         sent += 1
                         await asyncio.sleep(1)
-                    except Exception as e:
-                        print("❌ خطا در fallback", name, "→", e)
+
+                    except Exception as fe:
+                        print("❌ خطا در fallback", name, "→", fe)
                         bad_links.add(fb)
                         err += 1
 
@@ -145,5 +147,6 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                 for h in hdr
             )
         )
+
     report = "<pre>" + "\n".join(lines) + "</pre>"
     await safe_send(bot, chat_id, report, parse_mode="HTML")
