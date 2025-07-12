@@ -15,23 +15,23 @@ from utils import (
 )
 
 BAD_LINKS_FILE = "bad_links.json"
-SEND_INTERVAL  = 3   # حداقل فاصله بین پیام‌ها
+SEND_INTERVAL  = 3   # ثانیه فاصله بین هر پیام
 _last_send     = 0
 
 def load_bad_links():
     try:
-        with open(BAD_LINKS_FILE, "r") as f:
+        with open(BAD_LINKS_FILE, "r", encoding="utf-8") as f:
             return set(json.load(f))
     except:
         return set()
 
 def save_bad_links(bad_links):
-    with open(BAD_LINKS_FILE, "w") as f:
-        json.dump(list(bad_links), f)
+    with open(BAD_LINKS_FILE, "w", encoding="utf-8") as f:
+        json.dump(list(bad_links), f, ensure_ascii=False, indent=2)
 
 async def safe_send(bot, chat_id, text, **kwargs):
     global _last_send
-    now  = time.time()
+    now = time.time()
     wait = SEND_INTERVAL - (now - _last_send)
     if wait > 0:
         await asyncio.sleep(wait)
@@ -39,10 +39,38 @@ async def safe_send(bot, chat_id, text, **kwargs):
     _last_send = time.time()
     return msg
 
+def generate_report(stats):
+    """
+    تولید جدول گزارش به صورت monospace در تگ <pre>.
+    """
+    headers = ["منبع", "دریافت", "ارسال", "خطا"]
+    # محاسبه طول ستون‌ها
+    widths = {h: len(h) for h in headers}
+    for row in stats:
+        for h in headers:
+            widths[h] = max(widths[h], len(str(row[h])))
+
+    # ساخت هدر
+    header_line = "  ".join(f"{h:<{widths[h]}}" for h in headers)
+    sep_line    = "  ".join("-" * widths[h] for h in headers)
+
+    # ساخت سطرها
+    lines = [header_line, sep_line]
+    for row in stats:
+        line = "  ".join(
+            f"{str(row[h]):<{widths[h]}}" if h == "منبع"
+            else f"{str(row[h]):>{widths[h]}}"
+            for h in headers
+        )
+        lines.append(line)
+
+    table = "\n".join(lines)
+    return f"<pre>{table}</pre>"
+
 async def fetch_and_send_news(bot, chat_id, sent_urls):
     sources   = load_sources()
     bad_links = load_bad_links()
-    stats     = []  # برای جمع‌آوری آمار هر منبع
+    stats     = []
 
     for src in sources:
         name     = src.get("name", "بدون‌نام")
@@ -80,10 +108,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     title   = item.get("title", "").strip()
                     caption = format_news(name, title, summ, link)
 
-                    await safe_send(bot, chat_id,
-                                    text=caption[:4096],
-                                    parse_mode="HTML")
-
+                    await safe_send(
+                        bot, chat_id,
+                        text=caption[:4096],
+                        parse_mode="HTML"
+                    )
                     sent_urls.add(link)
                     sent_cnt += 1
                     await asyncio.sleep(1)
@@ -97,7 +126,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
             print(f"⚠️ خطا در دریافت از {name} → {e}")
             err_cnt += 1
 
-            # fallback فقط برای لینک مقاله
+            # منطق fallback برای URLهای مقاله
             if fallback:
                 path = urlparse(fallback).path or "/"
                 if path not in ("/", "") and fallback not in bad_links:
@@ -115,10 +144,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                             name, summ, fallback
                         )
 
-                        await safe_send(bot, chat_id,
-                                        text=caption[:4096],
-                                        parse_mode="HTML")
-
+                        await safe_send(
+                            bot, chat_id,
+                            text=caption[:4096],
+                            parse_mode="HTML"
+                        )
                         sent_cnt += 1
                         await asyncio.sleep(1)
 
@@ -135,19 +165,15 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
         })
 
         if sent_cnt == 0:
-            await safe_send(bot, chat_id,
-                text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد.")
+            await safe_send(
+                bot, chat_id,
+                text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد."
+            )
         else:
             print(f"✅ پایان بررسی {name} — {sent_cnt} خبر ارسال شد")
 
     save_bad_links(bad_links)
 
-    # --- ارسال جدول گزارش ---
-    table = ["| منبع | دریافت | ارسال | خطا |",
-             "|---|---|---|---|"]
-    for row in stats:
-        table.append(f"| {row['منبع']} | {row['دریافت']} | {row['ارسال']} | {row['خطا']} |")
-    report = "\n".join(table)
-    await safe_send(bot, chat_id,
-                    text=report,
-                    parse_mode="Markdown")
+    # ارسال گزارش نهایی با جدول monospace
+    report = generate_report(stats)
+    await safe_send(bot, chat_id, text=report, parse_mode="HTML")
