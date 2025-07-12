@@ -6,9 +6,9 @@ import json
 from telegram import Bot, error
 from fetch_news import fetch_and_send_news
 
-# نام متغیر محیطی توکن را مطابق تنظیمات شما نگه‌داشته‌ایم
-TOKEN    = os.environ["TOKEN"]
-GROUP_ID = int(os.environ["GROUP_ID"])
+# از نام متغیر محیطی BOT_TOKEN برای توکن استفاده می‌شود
+TOKEN    = os.environ["BOT_TOKEN"]
+GROUP_ID = int(os.environ["GROUP_ID"])  # مقدار: -1002514471809
 
 SENT_URLS_FILE = "sent_urls.json"
 
@@ -27,7 +27,7 @@ async def main_loop():
     bot = Bot(token=TOKEN)
     sent_urls = load_sent_urls()
 
-    # اطمینان از وجود چت
+    # بررسی وجود کانال/گروه
     try:
         info = await bot.get_chat(GROUP_ID)
         print("✅ Chat found:", info.title or info.username)
