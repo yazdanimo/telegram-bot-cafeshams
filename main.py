@@ -6,10 +6,10 @@ import json
 from telegram import Bot, error
 from fetch_news import fetch_and_send_news
 
-TOKEN             = os.environ["BOT_TOKEN"]
-GROUP_ID          = int(os.environ["GROUP_ID"])
-SENT_URLS_FILE    = "sent_urls.json"
-SENT_HASHES_FILE  = "sent_hashes.json"
+TOKEN           = os.environ["BOT_TOKEN"]
+GROUP_ID        = int(os.environ["GROUP_ID"])
+SENT_URLS_FILE  = "sent_urls.json"
+SENT_HASHES_FILE= "sent_hashes.json"
 
 def load_set(path):
     try:
@@ -25,7 +25,7 @@ def save_set(data, path):
 async def main_loop():
     bot = Bot(token=TOKEN)
 
-    # اطمینان از وجود گروه/کانال
+    # بررسی اولیه چت
     try:
         info = await bot.get_chat(GROUP_ID)
         print("✅ Chat found:", info.title or info.username)
@@ -37,23 +37,31 @@ async def main_loop():
     sent_hashes  = load_set(SENT_HASHES_FILE)
 
     while True:
-        print("✅ مرحله دریافت آغاز شد")
+        print("✅ شروع دوره‌ی جدید دریافت و ارسال اخبار")
         try:
-            await fetch_and_send_news(bot, GROUP_ID, sent_urls, sent_hashes)
+            # اجرای fetch_and_send_news با حداکثر 180 ثانیه
+            await asyncio.wait_for(
+                fetch_and_send_news(bot, GROUP_ID, sent_urls, sent_hashes),
+                timeout=180
+            )
+        except asyncio.TimeoutError:
+            print("⏱️ هشدار: fetch_and_send_news تایم‌اوت شد (180s)")
         except Exception as e:
-            print("❌ خطا در اجرای fetch_and_send_news →", e)
+            print("❌ خطای کلی در fetch_and_send_news →", e)
             try:
                 await bot.send_message(
                     chat_id=GROUP_ID,
-                    text=f"⚠️ اجرای خبر با خطا مواجه شد → {e}"
+                    text=f"⚠️ خطا در اجرا → {e}"
                 )
             except:
                 pass
 
+        # ذخیره وضعیت لینک‌ها و هش‌ها
         save_set(sent_urls, SENT_URLS_FILE)
         save_set(sent_hashes, SENT_HASHES_FILE)
 
-        # فاصله بین هر دوره اجرا: 180 ثانیه
+        # خواب ۱۸۰ ثانیه قبل از دوره‌ی بعدی
+        print("⏳ خواب ۱۸۰ ثانیه قبل از دوره‌ی بعدی")
         await asyncio.sleep(180)
 
 if __name__ == "__main__":
