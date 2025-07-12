@@ -1,5 +1,3 @@
-# File: main.py
-
 import os
 import asyncio
 import json
@@ -25,43 +23,32 @@ def save_set(data, path):
 async def main_loop():
     bot = Bot(token=TOKEN)
 
-    # بررسی اولیه چت
+    # چک عضویت در گروه فقط در لاگ
     try:
         info = await bot.get_chat(GROUP_ID)
         print("✅ Chat found:", info.title or info.username)
     except error.BadRequest as e:
-        print("❌ Chat not found! check GROUP_ID →", e)
+        print("❌ Chat not found:", e)
         return
 
-    sent_urls    = load_set(SENT_URLS_FILE)
-    sent_hashes  = load_set(SENT_HASHES_FILE)
+    sent_urls   = load_set(SENT_URLS_FILE)
+    sent_hashes = load_set(SENT_HASHES_FILE)
 
     while True:
-        print("✅ شروع دوره‌ی جدید دریافت و ارسال اخبار")
+        print("🔄 شروع دوره دریافت اخبار")
         try:
-            # اجرای fetch_and_send_news با حداکثر 180 ثانیه
             await asyncio.wait_for(
                 fetch_and_send_news(bot, GROUP_ID, sent_urls, sent_hashes),
                 timeout=180
             )
         except asyncio.TimeoutError:
-            print("⏱️ هشدار: fetch_and_send_news تایم‌اوت شد (180s)")
+            print("⏱️ Timeout: fetch_and_send_news took too long")
         except Exception as e:
-            print("❌ خطای کلی در fetch_and_send_news →", e)
-            try:
-                await bot.send_message(
-                    chat_id=GROUP_ID,
-                    text=f"⚠️ خطا در اجرا → {e}"
-                )
-            except:
-                pass
+            print("❌ Execution error →", e)
 
-        # ذخیره وضعیت لینک‌ها و هش‌ها
         save_set(sent_urls, SENT_URLS_FILE)
         save_set(sent_hashes, SENT_HASHES_FILE)
-
-        # خواب ۱۸۰ ثانیه قبل از دوره‌ی بعدی
-        print("⏳ خواب ۱۸۰ ثانیه قبل از دوره‌ی بعدی")
+        print("🕒 منتظر دوره بعدی (۱۸۰ ثانیه)\n")
         await asyncio.sleep(180)
 
 if __name__ == "__main__":
