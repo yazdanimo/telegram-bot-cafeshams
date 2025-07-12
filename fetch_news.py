@@ -8,9 +8,10 @@ from urllib.parse import urlparse, urlunparse, parse_qsl
 
 from utils import load_sources, extract_full_content, summarize_text, format_news
 
-BAD_LINKS_FILE = "bad_links.json"
-SEND_INTERVAL  = 3
-LAST_SEND      = 0
+BAD_LINKS_FILE     = "bad_links.json"
+SEND_INTERVAL      = 3
+LAST_SEND          = 0
+GARBAGE_NEWS_FILE  = "garbage_news.json"
 
 def load_set(path):
     try:
@@ -27,6 +28,34 @@ def normalize_url(url):
     p  = urlparse(url)
     qs = [(k, v) for k, v in parse_qsl(p.query) if not k.startswith("utm_")]
     return urlunparse((p.scheme, p.netloc, p.path, "", "&".join(f"{k}={v}" for k,v in qs), ""))
+
+def is_garbage(text):
+    text = text.strip()
+    return (
+        len(text) < 60 or
+        "ههههه" in text or
+        "صف صف صف" in text or
+        sum(text.count(ch) for ch in "؟%$#@!") > 5 or
+        text.count("پhtیn") > 1 or
+        any(word in text for word in ["پhtیn", "غnی", "adrmurd", "atharnah", "hhaharahahahn"])
+    )
+
+def log_garbage(source, link, title, content):
+    try:
+        with open(GARBAGE_NEWS_FILE, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+    except:
+        existing = []
+
+    existing.append({
+        "source": source,
+        "link": link,
+        "title": title,
+        "content": content[:300]
+    })
+
+    with open(GARBAGE_NEWS_FILE, "w", encoding="utf-8") as f:
+        json.dump(existing, f, ensure_ascii=False, indent=2)
 
 async def safe_send(bot, chat_id, text, **kwargs):
     global LAST_SEND
@@ -82,7 +111,15 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
 
                         full = extract_full_content(html)
                         summ = summarize_text(full)
-                        cap  = format_news(name, item.get("title",""), summ, raw)
+
+                        # چک محتوای خراب
+                        if is_garbage(full) or is_garbage(summ):
+                            print(f"🚫 حذف محتوای خراب از {name}")
+                            log_garbage(name, raw, item.get("title", ""), full)
+                            bad_links.add(u)
+                            continue
+
+                        cap = format_news(name, item.get("title",""), summ, raw)
 
                         h = hashlib.md5(cap.encode("utf-8")).hexdigest()
                         if h in sent_hashes:
@@ -100,6 +137,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                         bad_links.add(u)
                         err += 1
 
+            # fallback اگر RSS خالی بود
             if total == 0 and fb:
                 try:
                     async with session.get(fb) as res:
@@ -109,9 +147,17 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
 
                     full = extract_full_content(html)
                     summ = summarize_text(full)
-                    cap  = format_news(f"{name} - fallback", name, summ, fb)
+
+                    if is_garbage(full) or is_garbage(summ):
+                        print(f"🚫 حذف محتوای خراب (fallback) از {name}")
+                        log_garbage(name, fb, "fallback", full)
+                        bad_links.add(fb)
+                        continue
+
+                    cap = format_news(f"{name} - fallback", name, summ, fb)
                     await safe_send(bot, chat_id, cap, parse_mode="HTML")
                     sent += 1
+
                 except Exception as fe:
                     print("❌ خطا در fallback", name, "→", fe)
                     bad_links.add(fb)
@@ -121,6 +167,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
 
         save_set(bad_links, BAD_LINKS_FILE)
 
+        # جدول گزارش
         hdr = ["منبع","دریافت","ارسال","خطا"]
         w   = {h: len(h) for h in hdr}
         for r in stats:
