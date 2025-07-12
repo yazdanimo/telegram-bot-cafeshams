@@ -1,3 +1,5 @@
+# File: main.py — کامل و هماهنگ با fetch_news.py نهایی
+
 import os
 import asyncio
 import json
@@ -34,7 +36,7 @@ async def main_loop():
     sent_hashes = load_set(SENT_HASHES_FILE)
 
     while True:
-        print("🔄 شروع دوره دریافت اخبار")
+        print("🔄 Starting news fetch loop")
         try:
             await asyncio.wait_for(
                 fetch_and_send_news(bot, GROUP_ID, sent_urls, sent_hashes),
@@ -47,7 +49,7 @@ async def main_loop():
 
         save_set(sent_urls, SENT_URLS_FILE)
         save_set(sent_hashes, SENT_HASHES_FILE)
-        print("🕒 منتظر دوره بعدی (۱۸۰ ثانیه)\n")
+        print("🕒 Sleeping for 180 seconds before next run\n")
         await asyncio.sleep(180)
 
 if __name__ == "__main__":
