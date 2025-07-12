@@ -15,7 +15,7 @@ from utils import (
 )
 
 BAD_LINKS_FILE = "bad_links.json"
-SEND_INTERVAL  = 3
+SEND_INTERVAL  = 3   # ثانیه فاصله بین هر پیام
 _last_send     = 0
 
 def load_bad_links():
@@ -69,6 +69,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                 link = item.get("link")
                 if not link or link in sent_urls or link in bad_links:
                     continue
+
                 try:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(link, timeout=10) as res:
@@ -83,9 +84,11 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     title   = item.get("title", "").strip()
                     caption = format_news(name, title, summ, link)
 
-                    await safe_send(bot, chat_id,
-                                    text=caption[:4096],
-                                    parse_mode="HTML")
+                    await safe_send(
+                        bot, chat_id,
+                        text=caption[:4096],
+                        parse_mode="HTML"
+                    )
                     sent_urls.add(link)
                     sent_cnt += 1
                     await asyncio.sleep(1)
@@ -115,9 +118,12 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                             f"{name} - گزارش جایگزین",
                             name, summ, fallback
                         )
-                        await safe_send(bot, chat_id,
-                                        text=caption[:4096],
-                                        parse_mode="HTML")
+                        await safe_send(
+                            bot, chat_id,
+                            text=caption[:4096],
+                            parse_mode="HTML"
+                        )
+                        sent_urls.add(fallback)
                         sent_cnt += 1
                         await asyncio.sleep(1)
                     except Exception as fe:
@@ -126,8 +132,10 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                         err_cnt += 1
 
         if sent_cnt == 0:
-            await safe_send(bot, chat_id,
-                text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد.")
+            await safe_send(
+                bot, chat_id,
+                text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد."
+            )
         else:
             print(f"✅ پایان بررسی {name} — {sent_cnt} خبر ارسال شد")
 
@@ -140,12 +148,13 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
     save_bad_links(bad_links)
 
-    # جدول گزارش
+    # ساخت و ارسال جدول گزارش
     headers = ["منبع", "دریافت", "ارسال", "خطا"]
     widths  = {h: len(h) for h in headers}
     for row in stats:
         for h in headers:
             widths[h] = max(widths[h], len(str(row[h])))
+
     header_line = "  ".join(f"{h:<{widths[h]}}" for h in headers)
     sep_line    = "  ".join("-" * widths[h] for h in headers)
     lines = [header_line, sep_line]
