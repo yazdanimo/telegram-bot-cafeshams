@@ -4,10 +4,10 @@ import json
 from telegram import Bot, error
 from fetch_news import fetch_and_send_news
 
-TOKEN           = os.environ["BOT_TOKEN"]
-GROUP_ID        = int(os.environ["GROUP_ID"])
-SENT_URLS_FILE  = "sent_urls.json"
-SENT_HASHES_FILE= "sent_hashes.json"
+TOKEN            = os.environ["BOT_TOKEN"]
+GROUP_ID         = int(os.environ["GROUP_ID"])
+SENT_URLS_FILE   = "sent_urls.json"
+SENT_HASHES_FILE = "sent_hashes.json"
 
 def load_set(path):
     try:
@@ -23,7 +23,6 @@ def save_set(data, path):
 async def main_loop():
     bot = Bot(token=TOKEN)
 
-    # چک عضویت در گروه فقط در لاگ
     try:
         info = await bot.get_chat(GROUP_ID)
         print("✅ Chat found:", info.title or info.username)
