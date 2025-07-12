@@ -59,7 +59,8 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
 
                     full    = extract_full_content(html)
                     summ    = summarize_text(full)
-                    caption = format_news(name, item.get("title", ""), summ, link)
+                    title   = item.get("title", "")
+                    caption = format_news(name, title, summ, link)
 
                     await bot.send_message(
                         chat_id=chat_id,
@@ -77,7 +78,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
         except Exception as e:
             print(f"⚠️ خطا در دریافت از {name} → {e}")
 
-            # اجرای fallback فقط برای لینک مقاله (نه صفحه اصلی)
+            # fallback فقط برای URL مقاله (نه صفحه اصلی)
             if fallback:
                 path = urlparse(fallback).path or "/"
                 if path not in ("/", "") and fallback not in bad_links:
@@ -109,6 +110,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                         print(f"❌ خطا در fallback {name} → {fe}")
                         bad_links.add(fallback)
 
+        # اگر هیچ خبری ارسال نشد
         if sent_cnt == 0:
             await bot.send_message(
                 chat_id=chat_id,
