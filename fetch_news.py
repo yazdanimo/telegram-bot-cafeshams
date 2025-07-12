@@ -15,8 +15,8 @@ from utils import (
 )
 
 BAD_LINKS_FILE = "bad_links.json"
-SEND_INTERVAL = 3  # حداقل فاصله بین ارسال پیام‌ها (ثانیه)
-_last_send = 0
+SEND_INTERVAL  = 3   # حداقل فاصله بین پیام‌ها
+_last_send     = 0
 
 def load_bad_links():
     try:
@@ -30,11 +30,8 @@ def save_bad_links(bad_links):
         json.dump(list(bad_links), f)
 
 async def safe_send(bot, chat_id, text, **kwargs):
-    """
-    ارسال پیام با رعایت محدودیت Flood Control تلگرام
-    """
     global _last_send
-    now = time.time()
+    now  = time.time()
     wait = SEND_INTERVAL - (now - _last_send)
     if wait > 0:
         await asyncio.sleep(wait)
@@ -45,18 +42,22 @@ async def safe_send(bot, chat_id, text, **kwargs):
 async def fetch_and_send_news(bot, chat_id, sent_urls):
     sources   = load_sources()
     bad_links = load_bad_links()
+    stats     = []  # برای جمع‌آوری آمار هر منبع
 
     for src in sources:
         name     = src.get("name", "بدون‌نام")
         rss_url  = src.get("rss")
         fallback = src.get("fallback")
         sent_cnt = 0
+        err_cnt  = 0
 
         print(f"⏳ شروع بررسی {name}")
 
         try:
             items = parse_rss(rss_url)
-            print(f"📥 دریافت {len(items)} آیتم از {name}")
+            total = len(items)
+            print(f"📥 دریافت {total} آیتم از {name}")
+
             if not items:
                 raise Exception("هیچ خبری از RSS دریافت نشد")
 
@@ -70,6 +71,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                         async with session.get(link, timeout=10) as res:
                             if res.status != 200:
                                 bad_links.add(link)
+                                err_cnt += 1
                                 continue
                             html = await res.text()
 
@@ -78,24 +80,24 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     title   = item.get("title", "").strip()
                     caption = format_news(name, title, summ, link)
 
-                    await safe_send(
-                        bot, chat_id,
-                        text=caption[:4096],
-                        parse_mode="HTML"
-                    )
+                    await safe_send(bot, chat_id,
+                                    text=caption[:4096],
+                                    parse_mode="HTML")
 
                     sent_urls.add(link)
                     sent_cnt += 1
-                    await asyncio.sleep(1)  # مابین لینک‌ها یک ثانیه فاصله
+                    await asyncio.sleep(1)
 
                 except Exception as e:
                     print(f"⚠️ خطا در پردازش {link} → {e}")
                     bad_links.add(link)
+                    err_cnt += 1
 
         except Exception as e:
             print(f"⚠️ خطا در دریافت از {name} → {e}")
+            err_cnt += 1
 
-            # fallback فقط برای URL مقاله (پوشه path خالی نباشد)
+            # fallback فقط برای لینک مقاله
             if fallback:
                 path = urlparse(fallback).path or "/"
                 if path not in ("/", "") and fallback not in bad_links:
@@ -110,16 +112,12 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                         summ    = summarize_text(full)
                         caption = format_news(
                             f"{name} - گزارش جایگزین",
-                            name,
-                            summ,
-                            fallback
+                            name, summ, fallback
                         )
 
-                        await safe_send(
-                            bot, chat_id,
-                            text=caption[:4096],
-                            parse_mode="HTML"
-                        )
+                        await safe_send(bot, chat_id,
+                                        text=caption[:4096],
+                                        parse_mode="HTML")
 
                         sent_cnt += 1
                         await asyncio.sleep(1)
@@ -127,14 +125,29 @@ async def fetch_and_send_news(bot, chat_id, sent_urls):
                     except Exception as fe:
                         print(f"❌ خطا در fallback {name} → {fe}")
                         bad_links.add(fallback)
+                        err_cnt += 1
 
-        # گزارش نهایی هر منبع
+        stats.append({
+            "منبع":   name,
+            "دریافت": total if 'total' in locals() else 0,
+            "ارسال":  sent_cnt,
+            "خطا":    err_cnt
+        })
+
         if sent_cnt == 0:
-            await safe_send(
-                bot, chat_id,
-                text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد."
-            )
+            await safe_send(bot, chat_id,
+                text=f"⚠️ از منبع {name} هیچ خبری ارسال نشد.")
         else:
             print(f"✅ پایان بررسی {name} — {sent_cnt} خبر ارسال شد")
 
     save_bad_links(bad_links)
+
+    # --- ارسال جدول گزارش ---
+    table = ["| منبع | دریافت | ارسال | خطا |",
+             "|---|---|---|---|"]
+    for row in stats:
+        table.append(f"| {row['منبع']} | {row['دریافت']} | {row['ارسال']} | {row['خطا']} |")
+    report = "\n".join(table)
+    await safe_send(bot, chat_id,
+                    text=report,
+                    parse_mode="Markdown")
