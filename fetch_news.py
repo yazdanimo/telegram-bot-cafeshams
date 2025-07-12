@@ -1,4 +1,4 @@
-# File: fetch_news.py — کامل و نهایی با ضدتکراری و فیلتر محتوا
+# File: fetch_news.py — نسخهٔ کامل نهایی با فیلتر محتوا، جلوگیری از خبر تکراری، گزارش انگلیسی، و ساختار منظم
 
 import aiohttp
 import asyncio
@@ -65,7 +65,7 @@ async def safe_send(bot, chat_id, text, **kwargs):
     try:
         return await bot.send_message(chat_id=chat_id, text=text, **kwargs)
     except Exception as e:
-        print("⚠️ خطا در ارسال پیام →", e)
+        print("⚠️ Error sending message →", e)
     finally:
         LAST_SEND = time.time()
 
@@ -77,7 +77,7 @@ async def parse_rss_async(url):
         )
         return dp.entries or []
     except Exception as e:
-        print(f"⚠️ خطا در خواندن RSS → {url} →", e)
+        print(f"⚠️ RSS parse error → {url} →", e)
         return []
 
 async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
@@ -93,7 +93,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
 
             items = await parse_rss_async(rss)
             total = len(items)
-            print(f"📥 دریافت {total} آیتم از {name}")
+            print(f"📥 {name} → Fetched {total} items")
 
             if total == 0:
                 err += 1
@@ -113,7 +113,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                         full = extract_full_content(html)
                         summ = summarize_text(full)
                         if is_garbage(full) or is_garbage(summ):
-                            print(f"🚫 حذف محتوای خراب از {name}")
+                            print(f"🚫 Discarded garbage content from {name}")
                             log_garbage(name, raw, item.get("title", ""), full)
                             bad_links.add(u)
                             continue
@@ -129,7 +129,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                         sent += 1
 
                     except Exception as e:
-                        print("⚠️ خطا در پردازش", raw, "→", e)
+                        print(f"⚠️ Error processing {raw} →", e)
                         bad_links.add(u)
                         err += 1
 
@@ -143,7 +143,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                     full = extract_full_content(html)
                     summ = summarize_text(full)
                     if is_garbage(full) or is_garbage(summ):
-                        print(f"🚫 حذف محتوای خراب (fallback) از {name}")
+                        print(f"🚫 Discarded fallback garbage content from {name}")
                         log_garbage(name, fb, "fallback", full)
                         bad_links.add(fb)
                         continue
@@ -156,7 +156,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                         sent += 1
 
                 except Exception as fe:
-                    print("❌ خطا در fallback", name, "→", fe)
+                    print(f"❌ Fallback error for {name} →", fe)
                     bad_links.add(fb)
                     err += 1
 
@@ -168,28 +168,31 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
         save_set(sent_hashes, SENT_HASHES_FILE)
         save_set(bad_links, BAD_LINKS_FILE)
 
-        # ساخت جدول نهایی با عرض دقیق ستون‌ها
-        hdr = ["منبع", "دریافت", "ارسال", "خطا"]
-        widths = {h: len(h) for h in hdr}
+        # Final report generation in English
+        headers = ["Source", "Fetched", "Sent", "Errors"]
+        widths  = {h: len(h) for h in headers}
         max_source_len = max(len(r["منبع"]) for r in stats)
-        widths["منبع"] = max(widths["منبع"], max_source_len)
+        widths["Source"] = max(widths["Source"], max_source_len)
+
         for r in stats:
-            for h in hdr:
-                widths[h] = max(widths[h], len(str(r[h])))
+            widths["Fetched"] = max(widths["Fetched"], len(str(r["دریافت"])))
+            widths["Sent"]    = max(widths["Sent"],    len(str(r["ارسال"])))
+            widths["Errors"]  = max(widths["Errors"],  len(str(r["خطا"])))
 
         lines = [
-            "📊 گزارش دریافت اخبار:\n",
-            "  ".join(f"{h:<{widths[h]}}" for h in hdr),
-            "  ".join("-" * widths[h] for h in hdr)
+            "📊 News Aggregation Report:\n",
+            "  ".join(f"{h:<{widths[h]}}" for h in headers),
+            "  ".join("-" * widths[h] for h in headers)
         ]
+
         for r in stats:
-            lines.append(
-                "  ".join(
-                    f"{r[h]:<{widths[h]}}" if h == "منبع"
-                    else f"{r[h]:>{widths[h]}}"
-                    for h in hdr
-                )
-            )
+            row = [
+                f"{r['منبع']:<{widths['Source']}}",
+                f"{r['دریافت']:>{widths['Fetched']}}",
+                f"{r['ارسال']:>{widths['Sent']}}",
+                f"{r['خطا']:>{widths['Errors']}}"
+            ]
+            lines.append("  ".join(row))
 
         report = "<pre>" + "\n".join(lines) + "</pre>"
         await safe_send(bot, chat_id, report, parse_mode="HTML")
