@@ -22,5 +22,8 @@
   { "name": "AP News", "rss": "https://apnews.com/rss", "fallback": "https://apnews.com/apf-topnews", "category": "international" },
   { "name": "BBC World", "rss": "https://feeds.bbci.co.uk/news/world/rss.xml", "fallback": "https://www.bbc.com/news/world", "category": "international" },
   { "name": "Jamaran", "rss": "https://www.jamaran.news/rss", "fallback": "https://www.jamaran.news/archive", "category": "political" },
-  { "name": "Akharin Khabar", "rss": "https://www.akharinkhabar.ir/rss", "fallback": "https://www.akharinkhabar.ir/archive", "category": "social" }
+  { "name": "Akharin Khabar", "rss": "https://www.akharinkhabar.ir/rss", "fallback": "https://www.akharinkhabar.ir/archive", "category": "social" },
+  { "name": "HamMihan", "rss": "https://www.hammihanonline.ir/rss", "fallback": "https://www.hammihanonline.ir/archive", "category": "political" },
+  { "name": "Etemad", "rss": "https://www.etemadonline.com/rss", "fallback": "https://www.etemadonline.com/archive", "category": "political" },
+  { "name": "Eslahat News", "rss": "https://www.eslahat.news/rss", "fallback": "https://www.eslahat.news/archive", "category": "political" }
 ]
