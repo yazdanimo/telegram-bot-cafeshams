@@ -1,56 +1,43 @@
-# File: main.py — کامل و هماهنگ با fetch_news.py نهایی
-
+# main.py
 import os
-import asyncio
-import json
-from telegram import Bot, error
+import logging
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler
 from fetch_news import fetch_and_send_news
+from handlers import handle_forward_news
+from utils import load_set
 
-TOKEN            = os.environ["BOT_TOKEN"]
-GROUP_ID         = int(os.environ["GROUP_ID"])
-SENT_URLS_FILE   = "sent_urls.json"
-SENT_HASHES_FILE = "sent_hashes.json"
+# setup logging
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-def load_set(path):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return set(json.load(f))
-    except:
-        return set()
+BOT_TOKEN       = os.getenv("BOT_TOKEN")
+EDITORS_CHAT_ID = int(os.getenv("EDITORS_CHAT_ID"))
+CHANNEL_ID      = int(os.getenv("CHANNEL_ID"))  # برای ارسال از handler
 
-def save_set(data, path):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(list(data), f, ensure_ascii=False, indent=2)
+app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-async def main_loop():
-    bot = Bot(token=TOKEN)
+# هندلر کال‌بک دکمهٔ ارسال به کانال
+app.add_handler(CallbackQueryHandler(handle_forward_news, pattern="^forward_news$"))
 
-    try:
-        info = await bot.get_chat(GROUP_ID)
-        print("✅ Chat found:", info.title or info.username)
-    except error.BadRequest as e:
-        print("❌ Chat not found:", e)
-        return
+# Job queue برای اجرای fetch_and_send_news هر 180 ثانیه
+async def news_job(context):
+    sent_urls   = load_set("sent_urls.json")
+    sent_hashes = load_set("sent_hashes.json")
+    await fetch_and_send_news(
+        context.bot,
+        EDITORS_CHAT_ID,
+        sent_urls,
+        sent_hashes
+    )
 
-    sent_urls   = load_set(SENT_URLS_FILE)
-    sent_hashes = load_set(SENT_HASHES_FILE)
-
-    while True:
-        print("🔄 Starting news fetch loop")
-        try:
-            await asyncio.wait_for(
-                fetch_and_send_news(bot, GROUP_ID, sent_urls, sent_hashes),
-                timeout=180
-            )
-        except asyncio.TimeoutError:
-            print("⏱️ Timeout: fetch_and_send_news took too long")
-        except Exception as e:
-            print("❌ Execution error →", e)
-
-        save_set(sent_urls, SENT_URLS_FILE)
-        save_set(sent_hashes, SENT_HASHES_FILE)
-        print("🕒 Sleeping for 180 seconds before next run\n")
-        await asyncio.sleep(180)
+app.job_queue.run_repeating(news_job, interval=180, first=0)
 
 if __name__ == "__main__":
-    asyncio.run(main_loop())
+    PORT       = int(os.getenv("PORT", 8443))
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=WEBHOOK_URL,
+        allowed_updates=["message", "callback_query"]
+    )
