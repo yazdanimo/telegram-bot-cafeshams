@@ -1,4 +1,3 @@
-// sources.json
 [
   { "name": "Mehr News",         "rss": "https://www.mehrnews.com/rss",          "fallback": "https://www.mehrnews.com/archive",       "category": "news",          "lang": "fa" },
   { "name": "Fars News",         "rss": "https://www.farsnews.ir/rss",           "fallback": "https://www.farsnews.ir/news",           "category": "news",          "lang": "fa" },
