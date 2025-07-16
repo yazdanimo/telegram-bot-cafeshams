@@ -44,7 +44,7 @@ def extract_full_content(html: str) -> str:
 def summarize_fa(text: str, max_s: int = 2) -> str:
     parts = re.split(r"[.؟!]\s*", text)
     summary = [p.strip() for p in parts if p.strip()]
-    return "؛ ".join(summary[:max_s])
+    return "； ".join(summary[:max_s])
 
 def summarize_en(text: str, max_s: int = 2) -> str:
     parts = re.split(r"[.?!]\s*", text)
@@ -82,7 +82,7 @@ async def safe_send(bot, chat_id, text, **kwargs):
         return res
     except RetryAfter as e:
         wait = e.retry_after + 1
-        logging.warning(f"🌊 Flood control, sleeping for {wait}s")
+        logging.warning(f"Flood control, sleeping for {wait}s")
         await asyncio.sleep(wait)
         res = await bot.send_message(chat_id=chat_id, text=text, **kwargs)
         LAST_SEND = time.time()
