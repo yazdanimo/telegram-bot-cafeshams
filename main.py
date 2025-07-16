@@ -8,33 +8,32 @@ from fetch_news import fetch_and_send_news
 from handlers import handle_forward_news
 from utils import load_set
 
-# ————————— تنظیمات لاگ —————————
+# —————— تنظیمات لاگ ——————
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-# ————————— خواندن ENV‌ها —————————
-BOT_TOKEN = os.getenv("BOT_TOKEN") or sys.exit(
-    "ERROR: متغیر محیطی BOT_TOKEN تعریف نشده"
-)
-
+# —————— خواندن متغیرها ——————
+BOT_TOKEN = os.getenv("BOT_TOKEN") or sys.exit("ERROR: متغیر محیطی BOT_TOKEN تعریف نشده")
 EDITORS_CHAT_ID = int(os.getenv("EDITORS_CHAT_ID", "-1002685190359"))
 CHANNEL_ID      = int(os.getenv("CHANNEL_ID", EDITORS_CHAT_ID))
 
-PORT = int(os.getenv("PORT", 8443))
-
-# این مقدار باید دقیقاً:
-# https://telegram-bot-cafeshams-production.up.railway.app/<BOT_TOKEN>
-# باشد. بدون اسلش اضافی در انتها.
-WEBHOOK_URL = os.getenv("WEBHOOK_URL") or sys.exit(
-    "ERROR: متغیر محیطی WEBHOOK_URL تعریف نشده. "
-    "Set it to 'https://telegram-bot-cafeshams-production.up.railway.app/{BOT_TOKEN}'"
+# Railway خودش آدرس سرویس را در یکی از این متغیرها می‌گذارد:
+host = (
+    os.getenv("RAILWAY_STATIC_URL")
+    or os.getenv("RAILWAY_URL")
+    or os.getenv("SERVICE_URL")
 )
+if not host:
+    sys.exit("ERROR: هیچ یک از RAILWAY_STATIC_URL یا RAILWAY_URL یا SERVICE_URL تعریف نشده")
 
-# ————————— ساخت Application —————————
+PORT = int(os.getenv("PORT", 8443))
+WEBHOOK_URL = f"https://{host}/{BOT_TOKEN}"
+
+# —————— ساخت اپلیکیشن ——————
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CallbackQueryHandler(handle_forward_news, pattern="^forward_news$"))
 
-# ————————— JobQueue: هر ۱۸۰ ثانیه اجرا می‌شود —————————
+# —————— JobQueue: هر ۱۸۰ ثانیه اجرا می‌کند ——————
 app.job_queue.run_repeating(
     lambda ctx: fetch_and_send_news(
         ctx.bot,
@@ -46,7 +45,7 @@ app.job_queue.run_repeating(
     first=0
 )
 
-# ————————— راه‌اندازی وبهوک —————————
+# —————— اجرای وبهوک ——————
 app.run_webhook(
     listen="0.0.0.0",
     port=PORT,
