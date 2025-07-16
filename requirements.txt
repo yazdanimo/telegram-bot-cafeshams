@@ -1,7 +1,8 @@
+# requirements.txt
 aiohttp
 feedparser
 translatepy
 beautifulsoup4
 langdetect
-python-telegram-bot==20.3
+python-telegram-bot[job-queue]==20.3
 requests
