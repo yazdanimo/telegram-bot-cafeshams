@@ -1,16 +1,28 @@
 # utils.py
+
+import os
+import sys
 import json
 from bs4 import BeautifulSoup
 
+BASE_DIR = os.path.dirname(__file__)
+SOURCES_PATH = os.path.join(BASE_DIR, "sources.json")
+
 def load_sources():
-    with open("sources.json", encoding="utf-8") as f:
-        return json.load(f)
+    if not os.path.exists(SOURCES_PATH):
+        sys.exit(f"ERROR: فایل sources.json یافت نشد در {SOURCES_PATH}")
+    try:
+        with open(SOURCES_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        sys.exit(f"ERROR: JSON نامعتبر در sources.json:\n  {e}")
+    return data
 
 def load_set(path: str) -> set:
     try:
         with open(path, "r", encoding="utf-8") as f:
             return set(json.load(f))
-    except FileNotFoundError:
+    except Exception:
         return set()
 
 def save_set(data: set, path: str):
