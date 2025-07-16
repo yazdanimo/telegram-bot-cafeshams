@@ -206,13 +206,4 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                             bad_links.add(u)
                             err += 1
                 except Exception as e:
-                    log_skipped(name, fb, f"fallback index error: {e}")
-                    print("⚠️ خطا در دریافت fallback:", e)
-                    bad_links.add(fb)
-                    err += 1
-
-            stats.append({"منبع": name, "دریافت": total, "ارسال": sent, "خطا": err})
-
-        sent_urls.update(sent_now)
-        sent_hashes.update(hashes_now)
-        save_set
+                    log_skipped(name, fb, f"fallback index error
