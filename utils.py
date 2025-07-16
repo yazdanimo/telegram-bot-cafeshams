@@ -2,10 +2,17 @@ import os
 import sys
 import json
 import re
+import time
+import asyncio
+import logging
 from bs4 import BeautifulSoup
+from telegram.error import RetryAfter
 
 BASE_DIR     = os.path.dirname(__file__)
 SOURCES_PATH = os.path.join(BASE_DIR, "sources.json")
+
+SEND_INTERVAL = 15
+LAST_SEND     = 0
 
 def load_sources():
     if not os.path.exists(SOURCES_PATH):
@@ -63,3 +70,20 @@ def is_garbage(text: str) -> bool:
         if kw in lower:
             return True
     return False
+
+async def safe_send(bot, chat_id, text, **kwargs):
+    global LAST_SEND
+    try:
+        diff = time.time() - LAST_SEND
+        if diff < SEND_INTERVAL:
+            await asyncio.sleep(SEND_INTERVAL - diff)
+        res = await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+        LAST_SEND = time.time()
+        return res
+    except RetryAfter as e:
+        wait = e.retry_after + 1
+        logging.warning(f"🌊 Flood control, sleeping for {wait}s")
+        await asyncio.sleep(wait)
+        res = await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+        LAST_SEND = time.time()
+        return res
