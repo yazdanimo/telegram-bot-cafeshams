@@ -1,18 +1,12 @@
-# handlers.py
-
 import logging
+import os
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-# CHANNEL_ID از env یا مقدار ثابت
-import os
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1002685190359"))
 
 async def send_news_with_button(bot, chat_id: int, text: str):
-    # لاگ قبل از ارسال
     logging.info(f"📤 send_news: chat_id={chat_id}, len(text)={len(text)}")
-    logging.debug(f"📜 text:\n{text[:200]}{'...' if len(text)>200 else ''}")
-
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ ارسال به کانال", callback_data="forward_news")]
     ])
