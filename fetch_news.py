@@ -56,7 +56,7 @@ def is_garbage(text):
             return True
     return False
     def log_garbage(source, link, title, content):
-    try:
+        try:
         with open(GARBAGE_NEWS_FILE, "r", encoding="utf-8") as f:
             items = json.load(f)
     except Exception:
