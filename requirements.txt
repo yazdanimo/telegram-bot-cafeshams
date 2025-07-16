@@ -5,4 +5,3 @@ beautifulsoup4
 langdetect
 python-telegram-bot==20.3
 requests
-googletrans==4.0.0-rc1
