@@ -15,7 +15,9 @@ SENT_URLS_FILE = "sent_urls.json"
 SENT_HASHES_FILE = "sent_hashes.json"
 BAD_LINKS_FILE = "bad_links.json"
 SKIPPED_LOG_FILE = "skipped_items.json"
-GAdef load_set(path):
+GARBAGE_NEWS_FILE = "garbage_news.json"
+
+def load_set(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return set(json.load(f))
@@ -52,7 +54,8 @@ def is_garbage(text):
     for keyword in ["ثبت نام", "login", "register", "ورود", "signup", "رمز عبور"]:
         if keyword.lower() in text.lower():
             return True
-    return FalseRBAGE_NEWS_FILE = "garbage_news.json"def log_garbage(source, link, title, content):
+    return False
+    def log_garbage(source, link, title, content):
     try:
         with open(GARBAGE_NEWS_FILE, "r", encoding="utf-8") as f:
             items = json.load(f)
@@ -92,7 +95,8 @@ async def safe_send(bot, chat_id, text, **kwargs):
     except Exception as e:
         print("⚠️ خطا در ارسال پیام:", e)
     finally:
-        LAST_SEND = time.time()async def parse_rss_async(url):
+        LAST_SEND = time.time()
+        async def parse_rss_async(url):
     try:
         dp = await asyncio.wait_for(asyncio.to_thread(feedparser.parse, url), timeout=10)
         return dp.entries or []
@@ -104,7 +108,9 @@ async def fetch_html(session, url):
     async with session.get(url) as res:
         if res.status != 200:
             raise Exception(f"HTTP {res.status}")
-        return await res.text()async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
+        return await res.text()
+
+async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
     bad_links = load_set(BAD_LINKS_FILE)
     stats = []
     sent_now = set()
@@ -118,8 +124,7 @@ async def fetch_html(session, url):
             items = await parse_rss_async(rss)
             total = len(items)
             print(f"📥 دریافت {total} آیتم از {name}")
-
-            for item in items[:3]:
+                        for item in items[:3]:
                 raw = item.get("link", "")
                 u = normalize_url(raw)
                 if not u or u in sent_urls or u in sent_now or u in bad_links:
@@ -148,7 +153,8 @@ async def fetch_html(session, url):
                     log_skipped(name, u, f"خطا: {e}", item.get("title"))
                     print("⚠️ خطا در پردازش", raw, "→", e)
                     bad_links.add(u)
-                    err += 1            if total == 0 and fb:
+                    err += 1
+                                if total == 0 and fb:
                 try:
                     html_index = await fetch_html(session, fb)
                     soup = BeautifulSoup(html_index, "html.parser")
