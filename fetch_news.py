@@ -105,6 +105,7 @@ async def safe_send(bot, chat_id, text, **kwargs):
         return []
 
 async def fetch_html(session, url):
+    try:
     async with session.get(url) as res:
         if res.status != 200:
             raise Exception(f"HTTP {res.status}")
