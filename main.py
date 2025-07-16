@@ -8,30 +8,19 @@ from fetch_news import fetch_and_send_news
 from handlers import handle_forward_news
 from utils import load_set
 
-# ————————— تنظیمات لاگ —————————
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-# ————————— خواندن متغیرها —————————
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    sys.exit("ERROR: متغیر محیطی BOT_TOKEN تنظیم نشده")
-
-# اینجا دامنه‌ی ریلیتو بزار:
-#   Value = telegram-bot-cafeshams-production.up.railway.app
-HOST = os.getenv("HOST")
-if not HOST:
-    sys.exit("ERROR: متغیر محیطی HOST تنظیم نشده (مثال: telegram-bot-cafeshams-production.up.railway.app)")
-
-# شناسه گروه سردبیری و کانال
+BOT_TOKEN = os.getenv("BOT_TOKEN") or sys.exit("ERROR: BOT_TOKEN تعریف نشده")
 EDITORS_CHAT_ID = int(os.getenv("EDITORS_CHAT_ID", "-1002685190359"))
-CHANNEL_ID      = int(os.getenv("CHANNEL_ID",      "-1002685190359"))
+CHANNEL_ID      = int(os.getenv("CHANNEL_ID", EDITORS_CHAT_ID))
 
-# ————————— ساخت اپلیکیشن —————————
+PORT = int(os.getenv("PORT", 8443))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL") or sys.exit("ERROR: WEBHOOK_URL تعریف نشده")
+
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CallbackQueryHandler(handle_forward_news, pattern="^forward_news$"))
 
-# ————————— JobQueue برای هر ۱۸۰ ثانیه —————————
 app.job_queue.run_repeating(
     lambda ctx: fetch_and_send_news(
         ctx.bot,
@@ -42,11 +31,6 @@ app.job_queue.run_repeating(
     interval=180,
     first=0
 )
-
-# ————————— وب‌هوک —————————
-PORT = int(os.getenv("PORT", 8443))
-# ساخت URL کامل وب‌هوک با پروتکل و توکن
-WEBHOOK_URL = f"https://{HOST}/{BOT_TOKEN}"
 
 app.run_webhook(
     listen="0.0.0.0",
