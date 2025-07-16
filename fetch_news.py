@@ -40,14 +40,14 @@ async def parse_rss(url: str):
     dp = await asyncio.to_thread(feedparser.parse, url)
     return dp.entries or []
 
-async def fetch_html(session, url: str) -> str:
+async def fetch_html(session, url: str) -> tuple[str, str]:
     try:
         async with session.get(url, timeout=15) as r:
             if r.status == 200:
-                return await r.text()
+                return await r.text(), str(r.url)
     except:
         pass
-    return ""
+    return "", url
 
 async def fetch_and_send_news(bot, chat_id, sent_urls: set, sent_hashes: set):
     bad      = load_set(FILES["bad"])
@@ -64,34 +64,39 @@ async def fetch_and_send_news(bot, chat_id, sent_urls: set, sent_hashes: set):
             items = await parse_rss(rss)
             got = len(items)
             for entry in items[:MAX_PER_SOURCE]:
-                link = entry.get("link","").strip()
+                link = entry.get("link", "").strip()
                 u    = normalize_url(link)
                 if not u or u in sent_urls|new_urls|bad:
                     continue
 
-                html = await fetch_html(sess, link)
+                html, final_url = await fetch_html(sess, link)
                 full = extract_full_content(html)
                 if is_garbage(full):
                     bad.add(u); err += 1; continue
 
-                if lang=="en":
-                    tr      = await asyncio.to_thread(translator.translate, full, "fa")
-                    fa_text = getattr(tr, "result", str(tr))
-                    summ    = summarize_fa(fa_text)
+                if lang == "en":
+                    try:
+                        tr = await asyncio.to_thread(translator.translate, full, "fa")
+                        fa_text = getattr(tr, "result", str(tr))
+                        summ = summarize_fa(fa_text)
+                    except Exception as e:
+                        logging.warning(f"⚠️ Translation failed: {e}")
+                        summ = summarize_fa(full)
                 else:
                     summ = summarize_fa(full)
 
                 if is_garbage(summ):
                     bad.add(u); err += 1; continue
 
-                title = entry.get("title","").strip() or name
-                text  = format_news(name, title, summ, link)
+                title = entry.get("title", "").strip() or name
+                text  = format_news(name, title, summ, final_url)
                 h     = hashlib.md5(text.encode()).hexdigest()
                 if h in sent_hashes|new_h:
                     continue
 
                 logging.info(f"✅ Sending: {title}")
                 await send_news_with_button(bot, chat_id, text)
+                await asyncio.sleep(1.5)  # جلوگیری از Flood control
                 new_urls.add(u); new_h.add(h); sent += 1
 
             stats.append({"src":name,"got":got,"sent":sent,"err":err})
