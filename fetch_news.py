@@ -7,16 +7,24 @@ import time
 import hashlib
 import feedparser
 import re
+
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urlunparse, parse_qsl
 
-# نصب: pip install googletrans==4.0.0-rc1
-from googletrans import Translator
+from translatepy import Translator
 
-from utils import load_sources, extract_full_content, summarize_text, format_news
+from utils import (
+    load_sources,
+    extract_full_content,
+    summarize_text,
+    format_news
+)
+
+# ── تنظیمات ───────────────────────────────────────────────────────────────
 
 SEND_INTERVAL      = 3
 LAST_SEND          = 0
+
 SENT_URLS_FILE     = "sent_urls.json"
 SENT_HASHES_FILE   = "sent_hashes.json"
 BAD_LINKS_FILE     = "bad_links.json"
@@ -25,6 +33,8 @@ GARBAGE_NEWS_FILE  = "garbage_news.json"
 
 translator = Translator()
 
+
+# ── توابع کمکی ────────────────────────────────────────────────────────────
 
 def load_set(path):
     try:
@@ -64,7 +74,7 @@ def is_garbage(text):
     if len(latin_words) > 5 and len(persian) < 50:
         return True
     for keyword in ["ثبت نام", "login", "register", "ورود", "signup", "رمز عبور"]:
-        if keyword.lower() in text.lower():
+        if keyword in text.lower():
             return True
     return False
 
@@ -76,9 +86,9 @@ def log_garbage(source, link, title, content):
     except Exception:
         items = []
     items.append({
-        "source": source,
-        "link": link,
-        "title": title,
+        "source":  source,
+        "link":    link,
+        "title":   title,
         "content": content[:300]
     })
     with open(GARBAGE_NEWS_FILE, "w", encoding="utf-8") as f:
@@ -93,8 +103,8 @@ def log_skipped(source, url, reason, title=None):
         items = []
     items.append({
         "source": source,
-        "url": url,
-        "title": title,
+        "url":    url,
+        "title":  title,
         "reason": reason
     })
     with open(SKIPPED_LOG_FILE, "w", encoding="utf-8") as f:
@@ -137,27 +147,26 @@ async def fetch_html(session, url):
         return ""
 
 
-async def translate_to_farsi(text: str) -> str:
-    try:
-        # اجرا در thread تا event loop مسدود نشود
-        result = await asyncio.to_thread(translator.translate, text, dest="fa")
-        return result.text
-    except Exception as e:
-        print("⚠️ خطا در ترجمه:", e)
-        return text
-
-
 async def process_content(full_text: str, lang: str) -> str:
     """
-    برای متون انگلیسی: اول ترجمه به فارسی، سپس خلاصه‌سازی
-    برای متون فارسی: فقط خلاصه‌سازی
+    اگر متن انگلیسی بود، اول به فارسی ترجمه
+    سپس خلاصه‌سازی؛ در غیر این صورت فقط خلاصه‌سازی.
     """
-    if lang == "en":
-        fa_full = await translate_to_farsi(full_text)
-        return await asyncio.to_thread(summarize_text, fa_full)
-    else:
-        return await asyncio.to_thread(summarize_text, full_text)
+    text_for_summary = full_text
+    if lang.lower() == "en":
+        try:
+            translation = await asyncio.to_thread(translator.translate,
+                                                 full_text, "fa")
+            # translatepy برمی‌گرداند یک شیء با فیلد .result
+            text_for_summary = getattr(translation, "result", str(translation))
+        except Exception as e:
+            print("⚠️ خطا در ترجمه:", e)
 
+    # خلاصه‌سازی (سینک با توابعutils)
+    return await asyncio.to_thread(summarize_text, text_for_summary)
+
+
+# ── تابع اصلی گردآوری و ارسال اخبار ────────────────────────────────────────
 
 async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
     bad_links   = load_set(BAD_LINKS_FILE)
@@ -173,7 +182,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
             name = src.get("name")
             rss  = src.get("rss")
             fb   = src.get("fallback")
-            lang = src.get("lang", "fa")  # مطمئن شو در sources.json هر منبع "lang": "en" یا "fa" دارد
+            lang = src.get("lang", "fa")  # "fa" یا "en"
 
             sent = err = 0
             items = await parse_rss_async(rss)
@@ -183,6 +192,7 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
             for item in items[:3]:
                 raw = item.get("link", "")
                 u   = normalize_url(raw)
+
                 if not u or u in sent_urls or u in sent_now or u in bad_links:
                     log_skipped(name, u, "تکراری", item.get("title"))
                     continue
@@ -217,41 +227,23 @@ async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
                     bad_links.add(u)
                     err += 1
 
-            # fallback handling (مثل قبل) ...
+            # ── fallback handling (مثل گذشته) ───────────────────────────────
+            if total == 0 and fb:
+                try:
+                    html_index = await fetch_html(session, fb)
+                    soup       = BeautifulSoup(html_index, "html.parser")
+                    base       = urlparse(fb)
+                    links      = []
 
-            stats.append({"منبع": name, "دریافت": total, "ارسال": sent, "خطا": err})
-
-        # ذخیره و ارسال گزارش نهایی (مثل قبل) ...
-
-        sent_urls.update(sent_now)
-        sent_hashes.update(hashes_now)
-        save_set(sent_urls,   SENT_URLS_FILE)
-        save_set(sent_hashes, SENT_HASHES_FILE)
-        save_set(bad_links,   BAD_LINKS_FILE)
-
-        # ساخت و ارسال جدول گزارش نهایی
-        headers = ["Source", "Fetched", "Sent", "Errors"]
-        widths  = {h: len(h) for h in headers}
-        max_src = max((len(r["منبع"]) for r in stats), default=0)
-        widths["Source"] = max(widths["Source"], max_src)
-        for r in stats:
-            widths["Fetched"] = max(widths["Fetched"], len(str(r["دریافت"])))
-            widths["Sent"]    = max(widths["Sent"],    len(str(r["ارسال"])))
-            widths["Errors"]  = max(widths["Errors"],  len(str(r["خطا"])))
-
-        lines = [
-            "📊 News Aggregation Report:\n",
-            "  ".join(f"{h:<{widths[h]}}" for h in headers),
-            "  ".join("-" * widths[h] for h in headers)
-        ]
-        for r in stats:
-            row = [
-                f"{r['منبع']:<{widths['Source']}}",
-                f"{r['دریافت']:>{widths['Fetched']}}",
-                f"{r['ارسال']:>{widths['Sent']}}",
-                f"{r['خطا']:>{widths['Errors']}}"
-            ]
-            lines.append("  ".join(row))
-
-        report = "<pre>" + "\n".join(lines) + "</pre>"
-        await safe_send(bot, chat_id, report, parse_mode="HTML")
+                    for a in soup.find_all("a", href=True):
+                        href = a["href"]
+                        if href.startswith("/"):
+                            href = urlunparse((
+                                base.scheme,
+                                base.netloc,
+                                href,
+                                "",
+                                "",
+                                ""
+                            ))
+                        if urlparse(href).netloc == base
