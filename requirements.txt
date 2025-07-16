@@ -4,5 +4,5 @@ feedparser
 translatepy
 beautifulsoup4
 langdetect
-python-telegram-bot[job-queue]==20.3
 requests
+python-telegram-bot[job-queue]==20.3
