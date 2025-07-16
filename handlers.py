@@ -2,7 +2,7 @@ import os
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
-from fetch_news import safe_send
+from utils import safe_send
 
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1002685190359"))
 
