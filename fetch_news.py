@@ -106,10 +106,13 @@ async def safe_send(bot, chat_id, text, **kwargs):
 
 async def fetch_html(session, url):
     try:
-    async with session.get(url) as res:
-        if res.status != 200:
-            raise Exception(f"HTTP {res.status}")
-        return await res.text()
+        async with session.get(url) as res:
+            if res.status != 200:
+                raise Exception(f"HTTP {res.status}")
+            return await res.text()
+    except Exception as e:
+        print(f"❌ خطا در دریافت HTML از {url}: {e}")
+        return ""
 
 async def fetch_and_send_news(bot, chat_id, sent_urls, sent_hashes):
     bad_links = load_set(BAD_LINKS_FILE)
