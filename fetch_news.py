@@ -1,4 +1,3 @@
-# fetch_news.py
 import aiohttp
 import asyncio
 import json
