@@ -125,7 +125,80 @@ def debug_info():
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)}), 500
 
-@flask_app.route('/test-news')
+@flask_app.route('/simple-test')
+def simple_test():
+    """تست ساده بدون threading - مستقیم از bot"""
+    import time
+    
+    async def test_direct_send():
+        try:
+            # تست مستقیم ارسال پیام
+            message = await app.bot.send_message(
+                chat_id=EDITORS_CHAT_ID,
+                text=f"🧪 تست مستقیم ارسال - زمان: {time.strftime('%H:%M:%S')}"
+            )
+            return f"موفق - پیام {message.message_id} ارسال شد"
+        except Exception as e:
+            return f"ناموفق - خطا: {str(e)}"
+    
+    try:
+        # اجرای تست در همان event loop
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # اگر loop در حال اجرا است، از run_once استفاده کنیم
+            result_container = {"result": "در حال انتظار..."}
+            
+            def test_callback(context):
+                async def run_test():
+                    result = await test_direct_send()
+                    result_container["result"] = result
+                    logging.info(f"تست مستقیم: {result}")
+                
+                asyncio.create_task(run_test())
+            
+            app.job_queue.run_once(test_callback, when=0, name="simple_test")
+            
+            return jsonify({
+                "status": "OK",
+                "message": "تست مستقیم اضافه شد به job queue",
+                "info": "نتیجه را در لاگ ببینید"
+            }), 200
+        else:
+            # اگر loop متوقف است، مستقیماً اجرا کنیم
+            result = asyncio.run(test_direct_send())
+            return jsonify({
+                "status": "OK",
+                "result": result
+            }), 200
+            
+    except Exception as e:
+        return jsonify({
+            "status": "ERROR", 
+            "message": f"خطا در تست: {str(e)}"
+        }), 500
+
+@flask_app.route('/bot-info')
+def bot_info():
+    """اطلاعات وضعیت ربات"""
+    try:
+        info = {
+            "bot_token_valid": bool(BOT_TOKEN and len(BOT_TOKEN) > 10),
+            "editors_chat_id": EDITORS_CHAT_ID,
+            "channel_id": CHANNEL_ID,
+            "job_queue_running": app.job_queue.scheduler.running if hasattr(app.job_queue, 'scheduler') else "نامشخص",
+            "application_running": getattr(app, 'running', "نامشخص")
+        }
+        
+        return jsonify({
+            "status": "OK",
+            "bot_info": info
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "status": "ERROR",
+            "message": str(e)
+        }), 500
 def test_news():
     """Manual trigger for testing news fetch - بدون threading conflicts"""
     try:
