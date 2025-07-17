@@ -266,15 +266,21 @@ def webhook():
         if not update_data:
             return jsonify({"status": "OK"}), 200
         
+        logging.info(f"📨 Webhook received: {str(update_data)[:200]}...")
+        
         if 'callback_query' in update_data:
             callback = update_data['callback_query']
             callback_data = callback.get('data', '')
             chat_id = callback['message']['chat']['id']
             message_id = callback['message']['message_id']
             
+            logging.info(f"🔘 Button clicked: {callback_data}")
+            
             if callback_data.startswith('forward:'):
                 news_hash = callback_data.replace('forward:', '')
                 message_text = callback['message']['text']
+                
+                logging.info(f"📤 Forward request for hash: {news_hash}")
                 
                 bot = Bot(token=BOT_TOKEN)
                 loop = asyncio.new_event_loop()
@@ -282,27 +288,22 @@ def webhook():
                 
                 async def forward_to_channel():
                     try:
+                        logging.info(f"📤 Sending to channel {CHANNEL_ID}")
+                        
                         channel_msg = await bot.send_message(
                             chat_id=CHANNEL_ID,
                             text=message_text,
                             parse_mode='HTML',
                             disable_web_page_preview=False,
-                            disable_notification=False,
-                            protect_content=False
+                            disable_notification=False
                         )
                         
-                        try:
-                            await bot.edit_message_reply_markup(
-                                chat_id=CHANNEL_ID,
-                                message_id=channel_msg.message_id,
-                                reply_markup=None
-                            )
-                        except:
-                            pass
+                        logging.info(f"✅ Message sent to channel: {channel_msg.message_id}")
                         
                         await bot.answer_callback_query(
                             callback_query_id=callback['id'],
-                            text="✅ خبر به کانال ارسال شد"
+                            text="✅ خبر با موفقیت به کانال ارسال شد",
+                            show_alert=False
                         )
                         
                         new_keyboard = InlineKeyboardMarkup([
@@ -318,22 +319,47 @@ def webhook():
                         return True
                         
                     except Exception as e:
-                        logging.error(f"Forward error: {e}")
-                        await bot.answer_callback_query(
-                            callback_query_id=callback['id'],
-                            text=f"❌ خطا: {str(e)}"
-                        )
+                        logging.error(f"❌ Forward error: {e}")
+                        
+                        try:
+                            await bot.answer_callback_query(
+                                callback_query_id=callback['id'],
+                                text=f"❌ خطا در ارسال: {str(e)[:50]}",
+                                show_alert=True
+                            )
+                        except:
+                            pass
+                        
                         return False
                 
                 result = loop.run_until_complete(forward_to_channel())
                 loop.close()
                 
-                logging.info(f"📤 Forward to channel: {'Success' if result else 'Failed'}")
+                logging.info(f"📤 Forward result: {'Success' if result else 'Failed'}")
+            
+            elif callback_data == "sent":
+                # دکمه قبلاً فشرده شده
+                try:
+                    bot = Bot(token=BOT_TOKEN)
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    async def respond():
+                        await bot.answer_callback_query(
+                            callback_query_id=callback['id'],
+                            text="این خبر قبلاً ارسال شده است",
+                            show_alert=False
+                        )
+                    
+                    loop.run_until_complete(respond())
+                    loop.close()
+                except Exception as e:
+                    logging.error(f"Sent button error: {e}")
         
         return jsonify({"status": "OK"}), 200
         
     except Exception as e:
-        logging.error(f"Webhook error: {e}")
+        logging.error(f"❌ Webhook error: {e}")
         return jsonify({"status": "ERROR", "message": str(e)}), 500
 
 def auto_news_worker():
@@ -532,6 +558,27 @@ async def process_and_send_news(bot, source, entry, news_hash):
                 logging.error(f"❌ خطا در ترجمه عنوان: {e}")
                 title = f"🌍 {title}"
             
+        # تشخیص زبان و ترجمه
+        english_sources = [
+            "Tehran Times", "Iran Front Page", "ABC News", "CNN", 
+            "The Guardian", "Al Jazeera", "Foreign Affairs", "The Atlantic",
+            "Brookings", "Carnegie", "Reuters", "AP News", "BBC World"
+        ]
+        
+        if source['name'] in english_sources:
+            try:
+                logging.info(f"🔄 شروع ترجمه عنوان از {source['name']}: {title[:50]}...")
+                title_fa = await translate_text(title)
+                if title_fa and len(title_fa.strip()) > 5:
+                    logging.info(f"✅ عنوان ترجمه شد: {title_fa[:50]}...")
+                    title = title_fa
+                else:
+                    logging.warning(f"⚠️ ترجمه عنوان ناموفق، استفاده از fallback")
+                    title = f"🌍 {title}"
+            except Exception as e:
+                logging.error(f"❌ خطا در ترجمه عنوان: {e}")
+                title = f"🌍 {title}"
+            
             if len(summary) > 50:
                 try:
                     logging.info(f"🔄 شروع ترجمه خلاصه از {source['name']}: {summary[:30]}...")
@@ -541,17 +588,18 @@ async def process_and_send_news(bot, source, entry, news_hash):
                         summary = summary_fa
                     else:
                         logging.warning(f"⚠️ ترجمه خلاصه ناموفق، استفاده از fallback")
-                        summary = f"🌍 [English] {summary[:250]}..."
+                        summary = f"🌍 [English] {summary[:400]}..."
                 except Exception as e:
                     logging.error(f"❌ خطا در ترجمه خلاصه: {e}")
-                    summary = f"🌍 [English] {summary[:250]}..."
+                    summary = f"🌍 [English] {summary[:400]}..."
             else:
                 summary = f"🌍 [English] {summary}"
         
-        if len(summary) > 400:
-            summary = summary[:400] + "..."
+        # تنظیم نهایی طول خلاصه
+        if len(summary) > 800:
+            summary = summary[:800] + "..."
         elif len(summary) < 100:
-            summary = title
+            summary = f"{title}\n\n[متن کامل در لینک زیر]"
 
         source_name_en = {
             "مهر": "Mehr News",
