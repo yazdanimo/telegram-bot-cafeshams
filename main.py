@@ -25,26 +25,14 @@ flask_app = Flask(__name__)
 auto_news_running = False
 sent_news = set()  # ذخیره خبرهای ارسال شده - reset شده
 
-@flask_app.route('/clear-cache')
-def clear_cache():
-    """پاک کردن کش خبرهای ارسال شده"""
-    global sent_news
-    sent_news.clear()
-    
-    return jsonify({
-        "status": "OK",
-        "message": "News cache cleared - next news will use new format",
-        "cache_size": len(sent_news)
-    })
-
 @flask_app.route('/')
 def home():
     return jsonify({
         "status": "WORKING",
         "message": "Cafe Shams News Bot - Production Ready",
-        "version": "v1.0-final",
+        "version": "v2.0-translate",
         "auto_news": auto_news_running,
-        "endpoints": ["/health", "/test", "/send", "/news", "/start-auto", "/stop-auto", "/stats", "/test-channel-access"]
+        "endpoints": ["/health", "/test", "/send", "/news", "/start-auto", "/stop-auto", "/stats", "/test-channel-access", "/clear-cache", "/force-news", "/test-translate"]
     })
 
 @flask_app.route('/health')
@@ -145,6 +133,18 @@ def stop_auto():
         "message": "Auto news stopped"
     })
 
+@flask_app.route('/clear-cache')
+def clear_cache():
+    """پاک کردن کش خبرهای ارسال شده"""
+    global sent_news
+    sent_news.clear()
+    
+    return jsonify({
+        "status": "OK",
+        "message": "News cache cleared - next news will use new format",
+        "cache_size": len(sent_news)
+    })
+
 @flask_app.route('/force-news')
 def force_news():
     """اجبار ارسال خبر جدید با فرمت جدید"""
@@ -171,6 +171,34 @@ def force_news():
         
     except Exception as e:
         return jsonify({"status": "ERROR", "error": str(e)})
+
+@flask_app.route('/test-translate')
+def test_translate():
+    """تست ترجمه"""
+    try:
+        test_text = "Trump announces new policy on immigration"
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def do_translate():
+            result = await translate_text(test_text)
+            return result
+        
+        result = loop.run_until_complete(do_translate())
+        loop.close()
+        
+        return jsonify({
+            "status": "OK",
+            "original": test_text,
+            "translated": result,
+            "success": result is not None
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "ERROR", "error": str(e)})
+
+@flask_app.route('/stats')
 def stats():
     """آمار ربات"""
     return jsonify({
@@ -330,12 +358,6 @@ def webhook():
         logging.error(f"Webhook error: {e}")
         return jsonify({"status": "ERROR", "message": str(e)}), 500
 
-# حذف تابع قدیمی که دیگه استفاده نمیشه
-# def fetch_and_send_news_sync() - حذف شده
-
-# حذف تابع قدیمی که دیگه استفاده نمیشه  
-# async def fetch_news_async() - حذف شده
-
 def auto_news_worker():
     """Worker thread برای خبرگیری خودکار"""
     global auto_news_running
@@ -353,7 +375,7 @@ def auto_news_worker():
         loop.close()
         
         if result["status"] == "SUCCESS":
-            logging.info(f"✅ Initial news: {result['title']}")
+            logging.info(f"✅ Initial news: sent {result.get('total_sent', 0)} news")
         else:
             logging.info("ℹ️ Initial news: No new news found")
     except Exception as e:
@@ -382,7 +404,7 @@ def auto_news_worker():
             loop.close()
             
             if result["status"] == "SUCCESS":
-                logging.info(f"✅ Auto news: {result['title']}")
+                logging.info(f"✅ Auto news: sent {result.get('total_sent', 0)} news")
             else:
                 logging.info("ℹ️ Auto news: No new news found")
                 
@@ -532,6 +554,45 @@ async def process_and_send_news(bot, source, entry, news_hash):
         summary = re.sub(r'<[^>]+>', '', summary)
         summary = summary.strip()
         
+        # تشخیص زبان و ترجمه
+        english_sources = [
+            "Tehran Times", "Iran Front Page", "ABC News", "CNN", 
+            "The Guardian", "Al Jazeera", "Foreign Affairs", "The Atlantic",
+            "Brookings", "Carnegie", "Reuters", "AP News", "BBC World"
+        ]
+        
+        if source['name'] in english_sources:
+            # ترجمه عنوان انگلیسی
+            try:
+                logging.info(f"🔄 شروع ترجمه عنوان از {source['name']}: {title[:50]}...")
+                title_fa = await translate_text(title)
+                if title_fa and len(title_fa.strip()) > 5:
+                    logging.info(f"✅ عنوان ترجمه شد: {title_fa[:50]}...")
+                    title = title_fa
+                else:
+                    logging.warning(f"⚠️ ترجمه عنوان ناموفق، استفاده از fallback")
+                    title = f"🌍 {title}"  # نشان انگلیسی
+            except Exception as e:
+                logging.error(f"❌ خطا در ترجمه عنوان: {e}")
+                title = f"🌍 {title}"
+            
+            # ترجمه خلاصه انگلیسی (فقط اگر طولانی باشد)
+            if len(summary) > 50:
+                try:
+                    logging.info(f"🔄 شروع ترجمه خلاصه از {source['name']}: {summary[:30]}...")
+                    summary_fa = await translate_text(summary)
+                    if summary_fa and len(summary_fa.strip()) > 20:
+                        logging.info(f"✅ خلاصه ترجمه شد: {summary_fa[:30]}...")
+                        summary = summary_fa
+                    else:
+                        logging.warning(f"⚠️ ترجمه خلاصه ناموفق، استفاده از fallback")
+                        summary = f"🌍 [English] {summary[:250]}..."
+                except Exception as e:
+                    logging.error(f"❌ خطا در ترجمه خلاصه: {e}")
+                    summary = f"🌍 [English] {summary[:250]}..."
+            else:
+                summary = f"🌍 [English] {summary}"
+        
         # محدود کردن طول خلاصه
         if len(summary) > 400:
             summary = summary[:400] + "..."
@@ -556,14 +617,14 @@ async def process_and_send_news(bot, source, entry, news_hash):
             "اصلاحات": "Eslahat News"
         }.get(source['name'], source['name'])
 
-        # فرمت پیام با styling زیبا و instant view
-        message_text = f"""📰 **{source_name_en}**
+        # فرمت پیام با HTML tags صحیح
+        message_text = f"""📰 <b>{source_name_en}</b>
 
-**{title}**
+<b>{title}</b>
 
 {summary}
 
-🔗 {link}
+🔗 <a href="{link}">مشاهده کامل خبر</a>
 
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
@@ -573,12 +634,12 @@ async def process_and_send_news(bot, source, entry, news_hash):
             [InlineKeyboardButton("✅ ارسال به کانال", callback_data=f"forward:{news_hash}")]
         ])
         
-        # ارسال به گروه ادیتورها
+        # ارسال با HTML parse mode
         msg = await bot.send_message(
             chat_id=EDITORS_CHAT_ID,
             text=message_text,
             reply_markup=keyboard,
-            parse_mode='Markdown',
+            parse_mode='HTML',
             disable_web_page_preview=False,
             disable_notification=False
         )
@@ -593,6 +654,52 @@ async def process_and_send_news(bot, source, entry, news_hash):
         logging.error(f"❌ خطا در ارسال خبر: {e}")
         return False
 
+async def translate_text(text):
+    """ترجمه متن انگلیسی به فارسی - روش ساده"""
+    try:
+        import aiohttp
+        
+        # تنظیف متن (حذف کاراکترهای اضافی)
+        text_clean = text.strip()[:300]  # محدود کردن طول
+        
+        # روش 1: MyMemory Translation API (رایگان و پایدار)
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = "https://api.mymemory.translated.net/get"
+                params = {
+                    'q': text_clean,
+                    'langpair': 'en|fa'
+                }
+                
+                timeout = aiohttp.ClientTimeout(total=8)
+                async with session.get(url, params=params, timeout=timeout) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        if result and 'responseData' in result:
+                            translated = result['responseData']['translatedText']
+                            if translated and len(translated) > 5 and translated != text_clean:
+                                logging.info(f"✅ ترجمه موفق: {text_clean[:30]}... → {translated[:30]}...")
+                                return translated
+        except Exception as e:
+            logging.warning(f"⚠️ خطا در ترجمه روش 1: {e}")
+        
+        # روش 2: Fallback - برچسب انگلیسی
+        logging.info(f"⚠️ ترجمه ناموفق، استفاده از fallback")
+        return None
+        
+    except Exception as e:
+        logging.error(f"Translation error: {e}")
+        return None
+
+async def send_report(bot, stats, total_news_sent, sent_news_list):
+    """ارسال گزارش جامع"""
+    try:
+        # محاسبه کل آمار
+        total_sources = len(stats)
+        total_got = sum(s["got"] for s in stats)
+        total_sent = sum(s["sent"] for s in stats)
+        total_err = sum(s["err"] for s in stats)
+        
 async def send_report(bot, stats, total_news_sent, sent_news_list):
     """ارسال گزارش جامع"""
     try:
