@@ -235,12 +235,12 @@ def webhook():
                 
                 async def forward_to_channel():
                     try:
-                        # ارسال به کانال با sender مخفی و instant view
+                        # ارسال به کانال با HTML formatting
                         channel_msg = await bot.send_message(
                             chat_id=CHANNEL_ID,
                             text=message_text,
-                            parse_mode='Markdown',
-                            disable_web_page_preview=False,  # Enable instant view
+                            parse_mode='HTML',  # تغییر از Markdown به HTML
+                            disable_web_page_preview=False,
                             disable_notification=False,
                             protect_content=False
                         )
@@ -644,4 +644,11 @@ async def send_report(bot, stats, news_sent, sent_source, sent_title):
 
 if __name__ == "__main__":
     logging.info(f"🚀 Cafe Shams News Bot starting on port {PORT}")
+    
+    # شروع خودکار خبرگیری بعد از deploy
+    logging.info("🔄 Auto-starting news collection...")
+    auto_news_running = True
+    auto_thread = threading.Thread(target=auto_news_worker, daemon=True)
+    auto_thread.start()
+    
     flask_app.run(host="0.0.0.0", port=PORT, debug=False)
