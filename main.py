@@ -223,12 +223,12 @@ def webhook():
                 
                 async def forward_to_channel():
                     try:
-                        # ارسال به کانال با sender مخفی
+                        # ارسال به کانال با sender مخفی و instant view
                         channel_msg = await bot.send_message(
                             chat_id=CHANNEL_ID,
                             text=message_text,
                             parse_mode='Markdown',
-                            disable_web_page_preview=False,
+                            disable_web_page_preview=False,  # Enable instant view
                             disable_notification=False,
                             protect_content=False
                         )
@@ -411,7 +411,7 @@ async def fetch_news_async(bot):
 
 {summary}
 
-🔗 [مشاهده کامل خبر]({link})
+🔗 {link}
 
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
@@ -421,13 +421,13 @@ async def fetch_news_async(bot):
                 [InlineKeyboardButton("✅ ارسال به کانال", callback_data=f"forward:{news_hash}")]
             ])
             
-            # ارسال به گروه ادیتورها با parse_mode برای لینک و instant view
+            # ارسال به گروه ادیتورها با parse_mode برای styling و instant view
             msg = await bot.send_message(
                 chat_id=EDITORS_CHAT_ID,
                 text=message_text,
                 reply_markup=keyboard,
                 parse_mode='Markdown',
-                disable_web_page_preview=False,  # Enable web preview for instant view
+                disable_web_page_preview=False,  # Enable instant view
                 disable_notification=False
             )
             
