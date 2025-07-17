@@ -191,17 +191,29 @@ def is_garbage(text: str) -> bool:
         return False
 
 async def safe_send(bot, chat_id: int, text: str, **kwargs):
-    """Safely send message with retry logic"""
+    """Safely send message with retry logic and proper connection handling"""
     max_retries = 3
     
     for attempt in range(max_retries):
         try:
-            await bot.send_message(chat_id=chat_id, text=text, **kwargs)
-            return
+            # Use bot.send_message directly with longer timeout
+            message = await bot.send_message(
+                chat_id=chat_id, 
+                text=text, 
+                read_timeout=30,
+                write_timeout=30,
+                connect_timeout=30,
+                pool_timeout=30,
+                **kwargs
+            )
+            logging.info(f"Message sent successfully to {chat_id}")
+            return message
         except Exception as e:
             logging.error(f"Send attempt {attempt + 1} failed: {e}")
             if attempt < max_retries - 1:
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                wait_time = (2 ** attempt) + 1  # 2, 3, 4 seconds
+                logging.info(f"Waiting {wait_time} seconds before retry...")
+                await asyncio.sleep(wait_time)
             else:
                 logging.error(f"Failed to send message after {max_retries} attempts")
                 raise e
