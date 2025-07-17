@@ -97,14 +97,16 @@ def initialize_bot():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Set webhook
-        loop.run_until_complete(app.bot.set_webhook(WEBHOOK_URL))
-        logging.info(f"Webhook set: {WEBHOOK_URL}")
+        async def setup():
+            # Set webhook
+            await app.bot.set_webhook(WEBHOOK_URL)
+            logging.info(f"Webhook set: {WEBHOOK_URL}")
+            
+            # Start job queue
+            await app.job_queue.start()
+            logging.info("Job queue started")
         
-        # Start job queue
-        app.job_queue.start()
-        logging.info("Job queue started")
-        
+        loop.run_until_complete(setup())
         loop.close()
     except Exception as e:
         logging.error(f"Bot initialization error: {e}")
