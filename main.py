@@ -52,6 +52,28 @@ flask_app = Flask(__name__)
 def health_check():
     return jsonify({"status": "OK", "message": "Bot is running"}), 200
 
+@flask_app.route('/test-news')
+def test_news():
+    """Manual trigger for testing news fetch"""
+    try:
+        def run_news_job():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                sent_urls = load_set("sent_urls.json")
+                sent_hashes = load_set("sent_hashes.json")
+                loop.run_until_complete(fetch_and_send_news(app.bot, EDITORS_CHAT_ID, sent_urls, sent_hashes))
+            finally:
+                loop.close()
+        
+        thread = threading.Thread(target=run_news_job)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({"status": "OK", "message": "News job triggered manually"}), 200
+    except Exception as e:
+        return jsonify({"status": "ERROR", "message": str(e)}), 500
+
 @flask_app.route('/')
 def index():
     return jsonify({"status": "OK", "message": "Cafe Shams News Bot"}), 200
@@ -100,8 +122,8 @@ async def news_job(ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"News job error: {e}")
 
-# Job interval: 5 minutes
-app.job_queue.run_repeating(news_job, interval=300, first=30)
+# Job interval: 5 minutes, start immediately for testing
+app.job_queue.run_repeating(news_job, interval=300, first=5)
 
 # 7. Initialize webhook and start job queue
 def initialize_bot():
