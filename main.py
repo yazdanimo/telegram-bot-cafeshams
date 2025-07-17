@@ -53,8 +53,30 @@ def index():
     return jsonify({
         "status": "OK", 
         "message": "Cafe Shams News Bot",
-        "endpoints": ["/health", "/test-news"],
-        "webhook": f"/{BOT_TOKEN}"
+        "endpoints": {
+            "/health": "Health check",
+            "/debug": "Debug info", 
+            "/test-news": "Manual news trigger",
+            "/status": "Bot status"
+        },
+        "webhook": f"/{BOT_TOKEN}",
+        "time": "4:11 AM"
+    }), 200
+
+@flask_app.route('/status')
+def bot_status():
+    """Bot status information"""
+    import os
+    return jsonify({
+        "status": "RUNNING",
+        "editors_chat": EDITORS_CHAT_ID,
+        "channel_id": CHANNEL_ID,
+        "webhook_url": WEBHOOK_URL,
+        "files_exist": {
+            "sources.json": os.path.exists("sources.json"),
+            "utils.py": os.path.exists("utils.py"),
+            "fetch_news.py": os.path.exists("fetch_news.py")
+        }
     }), 200
 
 @flask_app.route('/health')
@@ -88,6 +110,36 @@ def debug_info():
             "python_path": os.environ.get('PYTHONPATH', 'Not set')
         }), 200
     except Exception as e:
+        return jsonify({"status": "ERROR", "message": str(e)}), 500
+
+@flask_app.route('/test-news')
+def test_news():
+    """Manual trigger for testing news fetch"""
+    try:
+        def run_news_job():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                logging.info("Manual news job triggered")
+                sent_urls = load_set("sent_urls.json")
+                sent_hashes = load_set("sent_hashes.json")
+                loop.run_until_complete(fetch_and_send_news(app.bot, EDITORS_CHAT_ID, sent_urls, sent_hashes))
+            except Exception as e:
+                logging.error(f"Manual news job error: {e}")
+            finally:
+                loop.close()
+        
+        thread = threading.Thread(target=run_news_job)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            "status": "OK", 
+            "message": "News job triggered manually",
+            "check": "Look at Railway logs for progress"
+        }), 200
+    except Exception as e:
+        logging.error(f"Test news endpoint error: {e}")
         return jsonify({"status": "ERROR", "message": str(e)}), 500
 def test_news():
     """Manual trigger for testing news fetch"""
@@ -162,8 +214,8 @@ async def news_job(ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"News job error: {e}")
 
-# Job interval: هر 3 دقیقه (180 ثانیه) - طبق درخواست
-app.job_queue.run_repeating(news_job, interval=180, first=5)
+# Job interval: هر 3 دقیقه (180 ثانیه) - شروع فوری
+app.job_queue.run_repeating(news_job, interval=180, first=0)
 
 # 7. Initialize webhook and start job queue
 def initialize_bot():
