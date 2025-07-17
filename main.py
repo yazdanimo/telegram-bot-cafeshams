@@ -145,7 +145,32 @@ def stop_auto():
         "message": "Auto news stopped"
     })
 
-@flask_app.route('/stats')
+@flask_app.route('/force-news')
+def force_news():
+    """اجبار ارسال خبر جدید با فرمت جدید"""
+    global sent_news
+    
+    try:
+        # پاک کردن کش
+        sent_news.clear()
+        
+        # ارسال خبر جدید
+        bot = Bot(token=BOT_TOKEN)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        result = loop.run_until_complete(fetch_news_async_with_report(bot))
+        loop.close()
+        
+        return jsonify({
+            "status": "SUCCESS",
+            "message": "Cache cleared and fresh news sent with new format",
+            "result": result
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "ERROR", "error": str(e)})
 def stats():
     """آمار ربات"""
     return jsonify({
