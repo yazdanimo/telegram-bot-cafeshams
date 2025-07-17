@@ -127,33 +127,38 @@ def debug_info():
 
 @flask_app.route('/test-news')
 def test_news():
-    """Manual trigger for testing news fetch"""
+    """Manual trigger for testing news fetch - بدون threading conflicts"""
     try:
-        def run_news_job():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                logging.info("Manual news job triggered")
-                sent_urls = load_set("sent_urls.json")
-                sent_hashes = load_set("sent_hashes.json")
-                loop.run_until_complete(fetch_and_send_news(app.bot, EDITORS_CHAT_ID, sent_urls, sent_hashes))
-            except Exception as e:
-                logging.error(f"Manual news job error: {e}")
-            finally:
-                loop.close()
-        
-        thread = threading.Thread(target=run_news_job)
-        thread.daemon = True
-        thread.start()
+        # استفاده از job queue به جای thread جداگانه
+        app.job_queue.run_once(
+            callback=lambda context: asyncio.create_task(
+                news_job_manual(context)
+            ),
+            when=0,  # اجرا فوری
+            name="manual_news_trigger"
+        )
         
         return jsonify({
             "status": "OK", 
-            "message": "News job triggered manually",
-            "check": "Look at Railway logs for progress"
+            "message": "Manual news job added to queue",
+            "info": "Job will execute within 5 seconds"
         }), 200
+        
     except Exception as e:
         logging.error(f"Test news endpoint error: {e}")
         return jsonify({"status": "ERROR", "message": str(e)}), 500
+
+# تابع جداگانه برای manual execution
+async def news_job_manual(context):
+    """همان کار news_job ولی بدون conflict"""
+    try:
+        logging.info("🔧 Manual news job started through job queue")
+        sent_urls = load_set("sent_urls.json")
+        sent_hashes = load_set("sent_hashes.json")
+        await fetch_and_send_news(context.bot, EDITORS_CHAT_ID, sent_urls, sent_hashes)
+        logging.info("🔧 Manual news job completed successfully")
+    except Exception as e:
+        logging.error(f"Manual news job error: {e}")
 def test_news():
     """Manual trigger for testing news fetch"""
     try:
