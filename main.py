@@ -641,25 +641,7 @@ async def send_report(bot, stats, total_news_sent, sent_news_list):
         
         lines.append("")
         if total_news_sent > 0:
-            lines.append(f"✅ {total_news_sent} news sent from multiple sources:")
-            for news in sent_news_list:
-                source_en = {
-                    "مهر": "Mehr News",
-                    "فارس": "Fars News", 
-                    "تسنیم": "Tasnim News",
-                    "ایرنا": "IRNA",
-                    "ایسنا": "ISNA",
-                    "همشهری آنلاین": "Hamshahri Online",
-                    "خبر آنلاین": "Khabar Online",
-                    "مشرق": "Mashregh News",
-                    "انتخاب": "Entekhab News",
-                    "جماران": "Jamaran",
-                    "آخرین خبر": "Akharin Khabar",
-                    "هم‌میهن": "HamMihan",
-                    "اعتماد": "Etemad",
-                    "اصلاحات": "Eslahat News"
-                }.get(news['source'], news['source'])
-                lines.append(f"📄 {source_en}: {news['title']}")
+            lines.append(f"✅ {total_news_sent} news sent successfully")
         else:
             lines.append("ℹ️ No new news found in this cycle")
         
