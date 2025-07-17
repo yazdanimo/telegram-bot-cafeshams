@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python main.py",
+    "startCommand": "gunicorn --bind 0.0.0.0:${PORT} main:flask_app --workers 1 --timeout 120 --threads 2",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
