@@ -471,7 +471,7 @@ def auto_news_worker():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
-            result = loop.run_until_complete(fetch_news_async(bot))
+            result = loop.run_until_complete(fetch_news_async_with_report(bot))
             loop.close()
             
             if result["status"] == "SUCCESS":
@@ -490,6 +490,293 @@ def auto_news_worker():
             time.sleep(60)  # در صورت خطا، 1 دقیقه صبر
     
     logging.info("🛑 Auto news worker stopped")
+
+async def fetch_news_async_with_report(bot):
+    """جمع‌آوری اخبار با گزارش کامل"""
+    import feedparser
+    
+    # منابع خبری کامل - ۲۷ منبع
+    sources = [
+        # منابع فارسی
+        {"name": "مهر", "url": "https://www.mehrnews.com/rss"},
+        {"name": "فارس", "url": "https://www.farsnews.ir/rss"},
+        {"name": "تسنیم", "url": "https://www.tasnimnews.com/fa/rss/feed"},
+        {"name": "ایرنا", "url": "https://www.irna.ir/rss"},
+        {"name": "ایسنا", "url": "https://www.isna.ir/rss"},
+        {"name": "همشهری آنلاین", "url": "https://www.hamshahrionline.ir/rss"},
+        {"name": "خبر آنلاین", "url": "https://www.khabaronline.ir/rss"},
+        {"name": "مشرق", "url": "https://www.mashreghnews.ir/rss"},
+        {"name": "انتخاب", "url": "https://www.entekhab.ir/fa/rss/allnews"},
+        {"name": "جماران", "url": "https://www.jamaran.news/rss"},
+        {"name": "آخرین خبر", "url": "https://www.akharinkhabar.ir/rss"},
+        {"name": "هم‌میهن", "url": "https://www.hammihanonline.ir/rss"},
+        {"name": "اعتماد", "url": "https://www.etemadonline.com/rss"},
+        {"name": "اصلاحات", "url": "https://www.eslahat.news/rss"},
+        
+        # منابع انگلیسی
+        {"name": "Tehran Times", "url": "https://www.tehrantimes.com/rss"},
+        {"name": "Iran Front Page", "url": "https://ifpnews.com/feed"},
+        {"name": "ABC News", "url": "https://abcnews.go.com/abcnews/topstories"},
+        {"name": "CNN", "url": "http://rss.cnn.com/rss/cnn_topstories.rss"},
+        {"name": "The Guardian", "url": "https://www.theguardian.com/world/rss"},
+        {"name": "Al Jazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml"},
+        {"name": "Foreign Affairs", "url": "https://www.foreignaffairs.com/rss.xml"},
+        {"name": "The Atlantic", "url": "https://www.theatlantic.com/feed/all"},
+        {"name": "Brookings", "url": "https://www.brookings.edu/feed"},
+        {"name": "Carnegie", "url": "https://carnegieendowment.org/rss"},
+        {"name": "Reuters", "url": "https://feeds.reuters.com/reuters/topNews"},
+        {"name": "AP News", "url": "https://apnews.com/rss"},
+        {"name": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml"}
+    ]
+    
+    # آمار برای گزارش
+    stats = []
+    news_sent = False
+    sent_source = ""
+    sent_title = ""
+    
+    for source in sources:
+        got = sent = err = 0
+        
+        try:
+            logging.info(f"📡 بررسی {source['name']}")
+            
+            # دریافت RSS با timeout
+            try:
+                feed = feedparser.parse(source['url'])
+                if not feed.entries:
+                    logging.warning(f"⚠️ {source['name']}: هیچ خبری یافت نشد")
+                    got = 0
+                else:
+                    got = len(feed.entries)
+            except Exception as e:
+                logging.error(f"❌ {source['name']}: خطا در RSS - {e}")
+                err += 1
+                stats.append({"src": source['name'], "got": got, "sent": sent, "err": err})
+                continue
+            
+            # اگر قبلاً خبری ارسال شده، فقط آمار جمع کن
+            if news_sent:
+                stats.append({"src": source['name'], "got": got, "sent": sent, "err": err})
+                continue
+            
+            if got > 0:
+                entry = feed.entries[0]
+                title = entry.get('title', 'بدون عنوان')
+                link = entry.get('link', '')
+                
+                if title and link:
+                    # بررسی تکراری نبودن
+                    news_hash = hashlib.md5(f"{source['name']}{title}".encode()).hexdigest()
+                    if news_hash not in sent_news:
+                        # پردازش و ارسال خبر (کد قبلی)
+                        try:
+                            result = await process_and_send_news(bot, source, entry, news_hash)
+                            if result:
+                                sent = 1
+                                news_sent = True
+                                sent_source = source['name']
+                                sent_title = title
+                        except Exception as e:
+                            logging.error(f"❌ خطا در پردازش خبر {source['name']}: {e}")
+                            err += 1
+                    else:
+                        logging.info(f"🔄 {source['name']}: خبر تکراری - رد شد")
+                
+        except Exception as e:
+            logging.error(f"❌ خطا در {source['name']}: {e}")
+            err += 1
+            
+        stats.append({"src": source['name'], "got": got, "sent": sent, "err": err})
+    
+    # ارسال گزارش
+    await send_report(bot, stats, news_sent, sent_source, sent_title)
+    
+    if news_sent:
+        return {
+            "status": "SUCCESS",
+            "source": sent_source,
+            "title": sent_title,
+            "total_sources": len(sources)
+        }
+    else:
+        return {
+            "status": "NO_NEWS", 
+            "message": "هیچ خبر جدیدی در هیچ‌کدام از ۲۷ منبع یافت نشد",
+            "total_sources_checked": len(sources)
+        }
+
+async def process_and_send_news(bot, source, entry, news_hash):
+    """پردازش و ارسال یک خبر"""
+    try:
+        title = entry.get('title', 'بدون عنوان')
+        link = entry.get('link', '')
+        
+        # دریافت خلاصه بهتر
+        summary = ""
+        if hasattr(entry, 'summary') and entry.summary:
+            summary = entry.summary
+        elif hasattr(entry, 'description') and entry.description:
+            summary = entry.description
+        elif hasattr(entry, 'content') and entry.content:
+            if isinstance(entry.content, list) and len(entry.content) > 0:
+                summary = entry.content[0].value
+            else:
+                summary = str(entry.content)
+        else:
+            summary = title
+        
+        # پاک کردن HTML tags از خلاصه
+        summary = re.sub(r'<[^>]+>', '', summary)
+        summary = summary.strip()
+        
+        # محدود کردن طول خلاصه
+        if len(summary) > 400:
+            summary = summary[:400] + "..."
+        elif len(summary) < 100:
+            summary = title
+
+        # ترجمه نام منبع به انگلیسی
+        source_name_en = {
+            "مهر": "Mehr News",
+            "فارس": "Fars News", 
+            "تسنیم": "Tasnim News",
+            "ایرنا": "IRNA",
+            "ایسنا": "ISNA",
+            "همشهری آنلاین": "Hamshahri Online",
+            "خبر آنلاین": "Khabar Online",
+            "مشرق": "Mashregh News",
+            "انتخاب": "Entekhab News",
+            "جماران": "Jamaran",
+            "آخرین خبر": "Akharin Khabar",
+            "هم‌میهن": "HamMihan",
+            "اعتماد": "Etemad",
+            "اصلاحات": "Eslahat News"
+        }.get(source['name'], source['name'])
+
+        # فرمت پیام با styling زیبا و instant view
+        message_text = f"""📰 **{source_name_en}**
+
+**{title}**
+
+{summary}
+
+🔗 {link}
+
+🆔 @cafeshamss     
+کافه شمس ☕️🍪"""
+
+        # ساخت دکمه
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ ارسال به کانال", callback_data=f"forward:{news_hash}")]
+        ])
+        
+        # ارسال به گروه ادیتورها
+        msg = await bot.send_message(
+            chat_id=EDITORS_CHAT_ID,
+            text=message_text,
+            reply_markup=keyboard,
+            parse_mode='Markdown',
+            disable_web_page_preview=False,
+            disable_notification=False
+        )
+        
+        # ذخیره در مجموعه ارسال شده
+        sent_news.add(news_hash)
+        
+        logging.info(f"✅ خبر ارسال شد از {source['name']}: {title}")
+        return True
+        
+    except Exception as e:
+        logging.error(f"❌ خطا در ارسال خبر: {e}")
+        return False
+
+async def send_report(bot, stats, news_sent, sent_source, sent_title):
+    """ارسال گزارش جامع"""
+    try:
+        # محاسبه کل آمار
+        total_sources = len(stats)
+        total_got = sum(s["got"] for s in stats)
+        total_sent = sum(s["sent"] for s in stats)
+        total_err = sum(s["err"] for s in stats)
+        
+        # ساخت جدول گزارش
+        lines = [
+            "📊 News Collection Report",
+            f"🔄 Total sources checked: {total_sources}",
+            f"📰 Total news found: {total_got}",
+            f"✅ Total sent: {total_sent}",
+            f"❌ Total errors: {total_err}",
+            "",
+            "Source              Found  Sent  Err",
+            "─────────────────── ─────  ────  ───"
+        ]
+        
+        for r in stats:
+            src_name = r["src"]
+            # ترجمه نام منابع فارسی به انگلیسی برای گزارش
+            src_name_en = {
+                "مهر": "Mehr News",
+                "فارس": "Fars News", 
+                "تسنیم": "Tasnim News",
+                "ایرنا": "IRNA",
+                "ایسنا": "ISNA",
+                "همشهری آنلاین": "Hamshahri Online",
+                "خبر آنلاین": "Khabar Online",
+                "مشرق": "Mashregh News",
+                "انتخاب": "Entekhab News",
+                "جماران": "Jamaran",
+                "آخرین خبر": "Akharin Khabar",
+                "هم‌میهن": "HamMihan",
+                "اعتماد": "Etemad",
+                "اصلاحات": "Eslahat News"
+            }.get(src_name, src_name)
+            
+            if len(src_name_en) > 18:
+                src_name_en = src_name_en[:15] + "..."
+            
+            lines.append(f"{src_name_en:<19} {r['got']:>5}  {r['sent']:>4}  {r['err']:>3}")
+        
+        lines.append("")
+        if news_sent:
+            # ترجمه نام منبع در خلاصه هم
+            sent_source_en = {
+                "مهر": "Mehr News",
+                "فارس": "Fars News", 
+                "تسنیم": "Tasnim News",
+                "ایرنا": "IRNA",
+                "ایسنا": "ISNA",
+                "همشهری آنلاین": "Hamshahri Online",
+                "خبر آنلاین": "Khabar Online",
+                "مشرق": "Mashregh News",
+                "انتخاب": "Entekhab News",
+                "جماران": "Jamaran",
+                "آخرین خبر": "Akharin Khabar",
+                "هم‌میهن": "HamMihan",
+                "اعتماد": "Etemad",
+                "اصلاحات": "Eslahat News"
+            }.get(sent_source, sent_source)
+            
+            lines.append(f"✅ News sent from {sent_source_en}")
+            lines.append(f"📄 {sent_title[:60]}...")
+        else:
+            lines.append("ℹ️ No new news found in this cycle")
+        
+        lines.append("⏰ Next cycle in 3 minutes...")
+        
+        report = "<pre>" + "\n".join(lines) + "</pre>"
+        
+        # ارسال گزارش
+        await bot.send_message(
+            chat_id=EDITORS_CHAT_ID,
+            text=report,
+            parse_mode="HTML"
+        )
+        
+        logging.info("📑 گزارش جامع ارسال شد")
+        
+    except Exception as e:
+        logging.error(f"خطا در ارسال گزارش: {e}")
 
 if __name__ == "__main__":
     logging.info(f"🚀 Cafe Shams News Bot starting on port {PORT}")
