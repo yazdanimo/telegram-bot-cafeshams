@@ -41,12 +41,21 @@ if not HOST:
 PORT = int(os.getenv("PORT", "8443"))
 WEBHOOK_URL = f"https://{HOST}/{BOT_TOKEN}"
 
-# 4. ساخت اپلیکیشن
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+# 4. ساخت اپلیکیشن با custom settings
+app = ApplicationBuilder().token(BOT_TOKEN).concurrent_updates(4).pool_timeout(30).connection_pool_size(8).read_timeout(30).write_timeout(30).build()
 app.add_handler(CallbackQueryHandler(handle_forward_news, pattern="^forward_news$"))
 
 # 5. Flask app for webhook
 flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def index():
+    return jsonify({
+        "status": "OK", 
+        "message": "Cafe Shams News Bot",
+        "endpoints": ["/health", "/test-news"],
+        "webhook": f"/{BOT_TOKEN}"
+    }), 200
 
 @flask_app.route('/health')
 def health_check():
@@ -60,9 +69,12 @@ def test_news():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
+                logging.info("Manual news job triggered")
                 sent_urls = load_set("sent_urls.json")
                 sent_hashes = load_set("sent_hashes.json")
                 loop.run_until_complete(fetch_and_send_news(app.bot, EDITORS_CHAT_ID, sent_urls, sent_hashes))
+            except Exception as e:
+                logging.error(f"Manual news job error: {e}")
             finally:
                 loop.close()
         
@@ -70,13 +82,14 @@ def test_news():
         thread.daemon = True
         thread.start()
         
-        return jsonify({"status": "OK", "message": "News job triggered manually"}), 200
+        return jsonify({
+            "status": "OK", 
+            "message": "News job triggered manually",
+            "check": "Look at Railway logs for progress"
+        }), 200
     except Exception as e:
+        logging.error(f"Test news endpoint error: {e}")
         return jsonify({"status": "ERROR", "message": str(e)}), 500
-
-@flask_app.route('/')
-def index():
-    return jsonify({"status": "OK", "message": "Cafe Shams News Bot"}), 200
 
 @flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
