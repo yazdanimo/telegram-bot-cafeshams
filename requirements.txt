@@ -6,4 +6,3 @@ langdetect>=1.0.9
 requests>=2.31.0
 python-telegram-bot[job-queue,webhooks]==20.3
 Flask>=2.3.3
-gunicorn>=21.2.0
