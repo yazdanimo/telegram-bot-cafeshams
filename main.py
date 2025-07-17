@@ -157,12 +157,13 @@ def webhook():
                 
                 async def forward_to_channel():
                     try:
-                        # ارسال به کانال
+                        # ارسال به کانال با instant view
                         await bot.send_message(
                             chat_id=CHANNEL_ID,
                             text=message_text,
                             parse_mode='Markdown',
-                            disable_web_page_preview=False
+                            disable_web_page_preview=False,  # Enable instant view
+                            disable_notification=False
                         )
                         
                         # پاسخ به callback query
@@ -328,11 +329,15 @@ async def fetch_news_async(bot):
                 "اصلاحات": "Eslahat News"
             }.get(source['name'], source['name'])
 
-            # فرمت پیام مطابق نمونه شما
-            message_text = f"""📰 {source_name_en}
-{title}
+            # فرمت پیام با styling زیبا
+            message_text = f"""📰 **{source_name_en}**
+
+**{title}**
+
 {summary}
+
 🔗 [مشاهده کامل خبر]({link})
+
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
             
