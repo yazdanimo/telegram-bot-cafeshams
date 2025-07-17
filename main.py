@@ -61,7 +61,34 @@ def index():
 def health_check():
     return jsonify({"status": "OK", "message": "Bot is running"}), 200
 
-@flask_app.route('/test-news')
+@flask_app.route('/debug')
+def debug_info():
+    """Debug endpoint to check file availability"""
+    import os
+    try:
+        # Check current directory
+        files = os.listdir('.')
+        
+        # Try to load sources
+        try:
+            from utils import load_sources
+            sources = load_sources()
+            sources_count = len(sources)
+            sources_status = "OK"
+        except Exception as e:
+            sources_count = 0
+            sources_status = str(e)
+        
+        return jsonify({
+            "status": "DEBUG",
+            "current_directory": os.getcwd(),
+            "files_in_directory": files,
+            "sources_count": sources_count,
+            "sources_status": sources_status,
+            "python_path": os.environ.get('PYTHONPATH', 'Not set')
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "ERROR", "message": str(e)}), 500
 def test_news():
     """Manual trigger for testing news fetch"""
     try:
@@ -135,8 +162,8 @@ async def news_job(ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"News job error: {e}")
 
-# Job interval: 5 minutes, start immediately for testing
-app.job_queue.run_repeating(news_job, interval=300, first=5)
+# Job interval: هر 3 دقیقه (180 ثانیه) - طبق درخواست
+app.job_queue.run_repeating(news_job, interval=180, first=5)
 
 # 7. Initialize webhook and start job queue
 def initialize_bot():
