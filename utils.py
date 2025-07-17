@@ -191,29 +191,43 @@ def is_garbage(text: str) -> bool:
         return False
 
 async def safe_send(bot, chat_id: int, text: str, **kwargs):
-    """Safely send message with retry logic and proper connection handling"""
+    """ارسال امن پیام با مدیریت خطا و retry منطقی"""
+    import random
+    
     max_retries = 3
+    base_delay = 2.0
     
     for attempt in range(max_retries):
         try:
-            # Use bot.send_message directly with longer timeout
+            # ارسال پیام با timeout های افزایش یافته
             message = await bot.send_message(
                 chat_id=chat_id, 
-                text=text, 
-                read_timeout=30,
-                write_timeout=30,
-                connect_timeout=30,
-                pool_timeout=30,
+                text=text,
                 **kwargs
             )
-            logging.info(f"Message sent successfully to {chat_id}")
+            logging.info(f"✅ پیام با موفقیت ارسال شد به {chat_id}")
             return message
+            
         except Exception as e:
-            logging.error(f"Send attempt {attempt + 1} failed: {e}")
-            if attempt < max_retries - 1:
-                wait_time = (2 ** attempt) + 1  # 2, 3, 4 seconds
-                logging.info(f"Waiting {wait_time} seconds before retry...")
-                await asyncio.sleep(wait_time)
+            error_msg = str(e)
+            logging.error(f"❌ تلاش {attempt + 1} ناموفق: {error_msg}")
+            
+            # اگر مشکل pool timeout هست
+            if "Pool timeout" in error_msg or "Event loop is closed" in error_msg:
+                if attempt < max_retries - 1:
+                    # محاسبه زمان انتظار با jitter
+                    delay = base_delay * (2 ** attempt)  # 2, 4, 8 ثانیه
+                    jitter = random.uniform(0, delay * 0.2)  # 20% تصادفی
+                    wait_time = delay + jitter
+                    
+                    logging.info(f"⏳ انتظار {wait_time:.1f} ثانیه قبل از تلاش مجدد...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logging.error(f"💥 ارسال پس از {max_retries} تلاش ناموفق بود")
+                    raise e
             else:
-                logging.error(f"Failed to send message after {max_retries} attempts")
-                raise e
+                # برای خطاهای دیگر، سریعتر retry کن
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1)
+                else:
+                    raise e
