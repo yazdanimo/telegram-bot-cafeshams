@@ -356,7 +356,7 @@ def auto_news_worker():
     logging.info("🛑 Auto news worker stopped")
 
 async def fetch_news_async_with_report(bot):
-    """جمع‌آوری اخبار با گزارش کامل"""
+    """جمع‌آوری اخبار با گزارش کامل - از همه منابع"""
     import feedparser
     
     # منابع خبری کامل - ۲۷ منبع
@@ -395,9 +395,8 @@ async def fetch_news_async_with_report(bot):
     
     # آمار برای گزارش
     stats = []
-    news_sent = False
-    sent_source = ""
-    sent_title = ""
+    total_news_sent = 0
+    sent_news_list = []
     
     for source in sources:
         got = sent = err = 0
@@ -419,33 +418,35 @@ async def fetch_news_async_with_report(bot):
                 stats.append({"src": source['name'], "got": got, "sent": sent, "err": err})
                 continue
             
-            # اگر قبلاً خبری ارسال شده، فقط آمار جمع کن
-            if news_sent:
-                stats.append({"src": source['name'], "got": got, "sent": sent, "err": err})
-                continue
-            
-            if got > 0:
-                entry = feed.entries[0]
-                title = entry.get('title', 'بدون عنوان')
-                link = entry.get('link', '')
-                
-                if title and link:
-                    # بررسی تکراری نبودن
-                    news_hash = hashlib.md5(f"{source['name']}{title}".encode()).hexdigest()
-                    if news_hash not in sent_news:
-                        # پردازش و ارسال خبر (کد قبلی)
-                        try:
-                            result = await process_and_send_news(bot, source, entry, news_hash)
-                            if result:
-                                sent = 1
-                                news_sent = True
-                                sent_source = source['name']
-                                sent_title = title
-                        except Exception as e:
-                            logging.error(f"❌ خطا در پردازش خبر {source['name']}: {e}")
-                            err += 1
-                    else:
-                        logging.info(f"🔄 {source['name']}: خبر تکراری - رد شد")
+            # بررسی اخبار این منبع (حداکثر 3 خبر از هر منبع)
+            for i, entry in enumerate(feed.entries[:3]):
+                if got > 0:
+                    title = entry.get('title', 'بدون عنوان')
+                    link = entry.get('link', '')
+                    
+                    if title and link:
+                        # بررسی تکراری نبودن
+                        news_hash = hashlib.md5(f"{source['name']}{title}".encode()).hexdigest()
+                        if news_hash not in sent_news:
+                            # پردازش و ارسال خبر
+                            try:
+                                result = await process_and_send_news(bot, source, entry, news_hash)
+                                if result:
+                                    sent += 1
+                                    total_news_sent += 1
+                                    sent_news_list.append({
+                                        "source": source['name'],
+                                        "title": title[:50] + "..."
+                                    })
+                                    
+                                    # فاصله بین ارسال اخبار (10 ثانیه)
+                                    await asyncio.sleep(10)
+                                    
+                            except Exception as e:
+                                logging.error(f"❌ خطا در پردازش خبر {source['name']}: {e}")
+                                err += 1
+                        else:
+                            logging.info(f"🔄 {source['name']}: خبر تکراری - رد شد")
                 
         except Exception as e:
             logging.error(f"❌ خطا در {source['name']}: {e}")
@@ -454,13 +455,13 @@ async def fetch_news_async_with_report(bot):
         stats.append({"src": source['name'], "got": got, "sent": sent, "err": err})
     
     # ارسال گزارش
-    await send_report(bot, stats, news_sent, sent_source, sent_title)
+    await send_report(bot, stats, total_news_sent, sent_news_list)
     
-    if news_sent:
+    if total_news_sent > 0:
         return {
             "status": "SUCCESS",
-            "source": sent_source,
-            "title": sent_title,
+            "total_sent": total_news_sent,
+            "news_list": sent_news_list,
             "total_sources": len(sources)
         }
     else:
@@ -555,7 +556,7 @@ async def process_and_send_news(bot, source, entry, news_hash):
         logging.error(f"❌ خطا در ارسال خبر: {e}")
         return False
 
-async def send_report(bot, stats, news_sent, sent_source, sent_title):
+async def send_report(bot, stats, total_news_sent, sent_news_list):
     """ارسال گزارش جامع"""
     try:
         # محاسبه کل آمار
@@ -602,27 +603,26 @@ async def send_report(bot, stats, news_sent, sent_source, sent_title):
             lines.append(f"{src_name_en:<19} {r['got']:>5}  {r['sent']:>4}  {r['err']:>3}")
         
         lines.append("")
-        if news_sent:
-            # ترجمه نام منبع در خلاصه هم
-            sent_source_en = {
-                "مهر": "Mehr News",
-                "فارس": "Fars News", 
-                "تسنیم": "Tasnim News",
-                "ایرنا": "IRNA",
-                "ایسنا": "ISNA",
-                "همشهری آنلاین": "Hamshahri Online",
-                "خبر آنلاین": "Khabar Online",
-                "مشرق": "Mashregh News",
-                "انتخاب": "Entekhab News",
-                "جماران": "Jamaran",
-                "آخرین خبر": "Akharin Khabar",
-                "هم‌میهن": "HamMihan",
-                "اعتماد": "Etemad",
-                "اصلاحات": "Eslahat News"
-            }.get(sent_source, sent_source)
-            
-            lines.append(f"✅ News sent from {sent_source_en}")
-            lines.append(f"📄 {sent_title[:60]}...")
+        if total_news_sent > 0:
+            lines.append(f"✅ {total_news_sent} news sent from multiple sources:")
+            for news in sent_news_list:
+                source_en = {
+                    "مهر": "Mehr News",
+                    "فارس": "Fars News", 
+                    "تسنیم": "Tasnim News",
+                    "ایرنا": "IRNA",
+                    "ایسنا": "ISNA",
+                    "همشهری آنلاین": "Hamshahri Online",
+                    "خبر آنلاین": "Khabar Online",
+                    "مشرق": "Mashregh News",
+                    "انتخاب": "Entekhab News",
+                    "جماران": "Jamaran",
+                    "آخرین خبر": "Akharin Khabar",
+                    "هم‌میهن": "HamMihan",
+                    "اعتماد": "Etemad",
+                    "اصلاحات": "Eslahat News"
+                }.get(news['source'], news['source'])
+                lines.append(f"📄 {source_en}: {news['title']}")
         else:
             lines.append("ℹ️ No new news found in this cycle")
         
