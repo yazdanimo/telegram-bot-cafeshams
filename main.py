@@ -4,7 +4,7 @@ import asyncio
 import logging
 import threading
 import time
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
 # Setup logging
@@ -130,6 +130,79 @@ def stats():
         "channel_id": CHANNEL_ID
     })
 
+@flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
+def webhook():
+    """Webhook handler برای دکمه‌ها"""
+    try:
+        update_data = request.get_json()
+        if not update_data:
+            return jsonify({"status": "OK"}), 200
+        
+        # بررسی callback query (کلیک روی دکمه)
+        if 'callback_query' in update_data:
+            callback = update_data['callback_query']
+            callback_data = callback.get('data', '')
+            chat_id = callback['message']['chat']['id']
+            message_id = callback['message']['message_id']
+            
+            if callback_data.startswith('forward:'):
+                # دکمه "ارسال به کانال" کلیک شده
+                news_hash = callback_data.replace('forward:', '')
+                message_text = callback['message']['text']
+                
+                # ارسال به کانال
+                bot = Bot(token=BOT_TOKEN)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                async def forward_to_channel():
+                    try:
+                        # ارسال به کانال
+                        await bot.send_message(
+                            chat_id=CHANNEL_ID,
+                            text=message_text,
+                            parse_mode='Markdown',
+                            disable_web_page_preview=False
+                        )
+                        
+                        # پاسخ به callback query
+                        await bot.answer_callback_query(
+                            callback_query_id=callback['id'],
+                            text="✅ خبر به کانال ارسال شد"
+                        )
+                        
+                        # تغییر دکمه به "ارسال شده"
+                        new_keyboard = InlineKeyboardMarkup([
+                            [InlineKeyboardButton("📤 ارسال شد", callback_data="sent")]
+                        ])
+                        
+                        await bot.edit_message_reply_markup(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            reply_markup=new_keyboard
+                        )
+                        
+                        return True
+                        
+                    except Exception as e:
+                        logging.error(f"Forward error: {e}")
+                        await bot.answer_callback_query(
+                            callback_query_id=callback['id'],
+                            text=f"❌ خطا: {str(e)}"
+                        )
+                        return False
+                
+                result = loop.run_until_complete(forward_to_channel())
+                loop.close()
+                
+                logging.info(f"📤 Forward to channel: {'Success' if result else 'Failed'}")
+        
+        return jsonify({"status": "OK"}), 200
+        
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+        return jsonify({"status": "ERROR", "message": str(e)}), 500
+
 def fetch_and_send_news_sync():
     """جمع‌آوری اخبار (sync wrapper)"""
     try:
@@ -212,11 +285,54 @@ async def fetch_news_async(bot):
                 logging.info(f"🔄 {source['name']}: خبر تکراری - رد شد")
                 continue
             
+            # دریافت خلاصه بهتر
+            summary = ""
+            if hasattr(entry, 'summary') and entry.summary:
+                summary = entry.summary
+            elif hasattr(entry, 'description') and entry.description:
+                summary = entry.description
+            elif hasattr(entry, 'content') and entry.content:
+                if isinstance(entry.content, list) and len(entry.content) > 0:
+                    summary = entry.content[0].value
+                else:
+                    summary = str(entry.content)
+            else:
+                summary = title
+            
+            # پاک کردن HTML tags از خلاصه
+            import re
+            summary = re.sub(r'<[^>]+>', '', summary)
+            summary = summary.strip()
+            
+            # محدود کردن طول خلاصه
+            if len(summary) > 400:
+                summary = summary[:400] + "..."
+            elif len(summary) < 100:
+                summary = title  # اگر خلاصه خیلی کوتاه بود، از عنوان استفاده کن
+
+            # ترجمه نام منبع به انگلیسی
+            source_name_en = {
+                "مهر": "Mehr News",
+                "فارس": "Fars News", 
+                "تسنیم": "Tasnim News",
+                "ایرنا": "IRNA",
+                "ایسنا": "ISNA",
+                "همشهری آنلاین": "Hamshahri Online",
+                "خبر آنلاین": "Khabar Online",
+                "مشرق": "Mashregh News",
+                "انتخاب": "Entekhab News",
+                "جماران": "Jamaran",
+                "آخرین خبر": "Akharin Khabar",
+                "هم‌میهن": "HamMihan",
+                "اعتماد": "Etemad",
+                "اصلاحات": "Eslahat News"
+            }.get(source['name'], source['name'])
+
             # فرمت پیام مطابق نمونه شما
-            message_text = f"""📰 {source['name']}
+            message_text = f"""📰 {source_name_en}
 {title}
-{entry.get('summary', title)[:300]}...
-🔗 مشاهده کامل خبر 
+{summary}
+🔗 [مشاهده کامل خبر]({link})
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
             
@@ -225,11 +341,13 @@ async def fetch_news_async(bot):
                 [InlineKeyboardButton("✅ ارسال به کانال", callback_data=f"forward:{news_hash}")]
             ])
             
-            # ارسال به گروه ادیتورها
+            # ارسال به گروه ادیتورها با parse_mode برای لینک
             msg = await bot.send_message(
                 chat_id=EDITORS_CHAT_ID,
                 text=message_text,
-                reply_markup=keyboard
+                reply_markup=keyboard,
+                parse_mode='Markdown',
+                disable_web_page_preview=False
             )
             
             # ذخیره در مجموعه ارسال شده
