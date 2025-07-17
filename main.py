@@ -1,7 +1,9 @@
 import os
 import sys
 import logging
-from flask import Flask, request
+import threading
+import asyncio
+from flask import Flask, request, jsonify
 
 # 1. پیکربندی لاگینگ کلی
 logging.basicConfig(
@@ -15,6 +17,7 @@ logging.getLogger("apscheduler").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.INFO)
 
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, ContextTypes
+from telegram import Update
 from utils import load_set
 from fetch_news import fetch_and_send_news
 from handlers import handle_forward_news
@@ -37,57 +40,90 @@ if not HOST:
 PORT = int(os.getenv("PORT", 8443))
 WEBHOOK_URL = f"https://{HOST}/{BOT_TOKEN}"
 
-# 4. Flask app for health check
+# 4. ساخت اپلیکیشن
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+app.add_handler(CallbackQueryHandler(handle_forward_news, pattern="^forward_news$"))
+
+# 5. Flask app for webhook
 flask_app = Flask(__name__)
 
 @flask_app.route('/health')
 def health_check():
-    return "OK", 200
+    return jsonify({"status": "OK", "message": "Bot is running"}), 200
 
 @flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
-    if request.method == 'POST':
-        update = request.get_json()
-        if update:
-            # Process update asynchronously
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(app.process_update(update))
-            loop.close()
-    return "OK", 200
-
-# 5. ساخت اپلیکیشن
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(CallbackQueryHandler(handle_forward_news, pattern="^forward_news$"))
+    try:
+        if request.method == 'POST':
+            update_data = request.get_json()
+            if update_data:
+                update = Update.de_json(update_data, app.bot)
+                # Process update in background thread
+                def process_update():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(app.process_update(update))
+                    finally:
+                        loop.close()
+                
+                thread = threading.Thread(target=process_update)
+                thread.daemon = True
+                thread.start()
+        
+        return jsonify({"status": "OK"}), 200
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+        return jsonify({"status": "ERROR", "message": str(e)}), 500
 
 # 6. تعریف Job
 async def news_job(ctx: ContextTypes.DEFAULT_TYPE):
     try:
+        logging.info("Starting news job...")
         sent_urls = load_set("sent_urls.json")
         sent_hashes = load_set("sent_hashes.json")
         await fetch_and_send_news(ctx.bot, EDITORS_CHAT_ID, sent_urls, sent_hashes)
+        logging.info("News job completed successfully")
     except Exception as e:
         logging.error(f"News job error: {e}")
 
-# Job interval increased to 5 minutes
-app.job_queue.run_repeating(news_job, interval=300, first=10)
+# Job interval: 5 minutes
+app.job_queue.run_repeating(news_job, interval=300, first=30)
 
-# 7. اجرای وب‌هوک
+# 7. Initialize webhook and start job queue
+def initialize_bot():
+    """Initialize bot webhook and start job queue"""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Set webhook
+        loop.run_until_complete(app.bot.set_webhook(WEBHOOK_URL))
+        logging.info(f"Webhook set: {WEBHOOK_URL}")
+        
+        # Start job queue
+        app.job_queue.start()
+        logging.info("Job queue started")
+        
+        loop.close()
+    except Exception as e:
+        logging.error(f"Bot initialization error: {e}")
+
+# Initialize bot when module loads
+if __name__ != "__main__":
+    initialize_bot()
+
+# 8. Main execution
 if __name__ == "__main__":
     logging.info(f"Bot starting; EDITORS_CHAT_ID={EDITORS_CHAT_ID}, CHANNEL_ID={CHANNEL_ID}")
-    logging.info(f"Webhook URL: {WEBHOOK_URL}")
     
-    # Set webhook
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(app.bot.set_webhook(WEBHOOK_URL))
-    loop.close()
+    # Initialize bot
+    initialize_bot()
     
     # Start Flask app
     flask_app.run(
         host="0.0.0.0",
         port=PORT,
-        debug=False
+        debug=False,
+        threaded=True
     )
