@@ -21,8 +21,8 @@ from utils import (
 )
 from handlers import send_news_with_button
 
-SEND_INTERVAL = 15  # افزایش یافته برای جلوگیری از pool timeout
-MAX_PER_SOURCE = 1  # کاهش یافته برای کاهش بار
+SEND_INTERVAL = 10  # فاصله بین ارسال اخبار
+MAX_PER_CYCLE = 1   # فقط یک خبر در هر دور (تا تکرار نباشه)
 FILES = {
     "urls": "sent_urls.json",
     "hashes": "sent_hashes.json",
@@ -83,9 +83,15 @@ async def fetch_and_send_news(bot, chat_id, sent_urls: set, sent_hashes: set):
     stats = []
     new_urls = set()
     new_h = set()
-
+    
+    # پیام شروع دور جدید
+    logging.info("🔄 شروع دور جدید جمع‌آوری اخبار...")
+    
     connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
     timeout = aiohttp.ClientTimeout(total=30)
+    
+    # متغیر برای کنترل ارسال فقط یک خبر در هر دور
+    news_sent_in_cycle = False
     
     async with aiohttp.ClientSession(connector=connector, timeout=timeout) as sess:
         sources = load_sources()
@@ -94,13 +100,19 @@ async def fetch_and_send_news(bot, chat_id, sent_urls: set, sent_hashes: set):
             name, rss, fb, lang = src["name"], src["rss"], src["fallback"], src["lang"]
             got = sent = err = 0
 
-            logging.info(f"📡 fetching {name}")
+            logging.info(f"📡 بررسی منبع: {name}")
             
             try:
                 items = await parse_rss(rss)
                 got = len(items)
                 
-                for entry in items[:MAX_PER_SOURCE]:
+                # اگر قبلاً در این دور خبری ارسال شده، فقط آمار جمع کن
+                if news_sent_in_cycle:
+                    logging.info(f"⏭️ رد شد: قبلاً در این دور خبر ارسال شده")
+                    stats.append({"src": name, "got": got, "sent": 0, "err": 0})
+                    continue
+                
+                for entry in items:
                     try:
                         link = entry.get("link", "").strip()
                         if not link:
@@ -138,57 +150,84 @@ async def fetch_and_send_news(bot, chat_id, sent_urls: set, sent_hashes: set):
                         if h in sent_hashes | new_h:
                             continue
 
-                        logging.info(f"✅ Sending: {title}")
+                        logging.info(f"✅ ارسال خبر از {name}: {title}")
                         await send_news_with_button(bot, chat_id, text)
                         new_urls.add(u)
                         new_h.add(h)
                         sent += 1
+                        news_sent_in_cycle = True  # علامت‌گذاری که خبر ارسال شد
                         
-                        # Longer delay between sends to prevent pool timeout
-                        await asyncio.sleep(SEND_INTERVAL)
-                        
-                        # Force cleanup connections periodically
-                        if sent % 3 == 0:
-                            await asyncio.sleep(5)  # Extra pause every 3 messages
+                        # خروج از حلقه چون فقط یک خبر در هر دور می‌خواهیم
+                        break
                         
                     except Exception as e:
-                        logging.error(f"Error processing entry from {name}: {e}")
+                        logging.error(f"خطا در پردازش خبر از {name}: {e}")
                         err += 1
                         
             except Exception as e:
-                logging.error(f"Error processing source {name}: {e}")
+                logging.error(f"خطا در پردازش منبع {name}: {e}")
                 err += 1
 
             stats.append({"src": name, "got": got, "sent": sent, "err": err})
+            
+            # اگر خبری ارسال شد، از بقیه منابع صرف نظر کن
+            if news_sent_in_cycle:
+                break
 
-    # Update tracking files
+    # به‌روزرسانی فایل‌های ردیابی
     sent_urls |= new_urls
     sent_hashes |= new_h
     save_set(sent_urls, FILES["urls"])
     save_set(sent_hashes, FILES["hashes"])
     save_set(bad, FILES["bad"])
 
-    # Generate report
-    hdr = ["Source", "Got", "Sent", "Err"]
-    w = {h: len(h) for h in hdr}
-    for r in stats:
-        w["Source"] = max(w["Source"], len(r["src"]))
-        w["Got"] = max(w["Got"], len(str(r["got"])))
-        w["Sent"] = max(w["Sent"], len(str(r["sent"])))
-        w["Err"] = max(w["Err"], len(str(r["err"])))
+    # تولید گزارش
+    generate_report(bot, chat_id, stats, news_sent_in_cycle)
 
-    lines = ["📊 News Report:\n",
-             "  ".join(f"{h:<{w[h]}}" for h in hdr),
-             "  ".join("-" * w[h] for h in hdr)]
+async def generate_report(bot, chat_id, stats, news_sent):
+    """تولید و ارسال گزارش جامع"""
+    
+    # محاسبه کل آمار
+    total_sources = len(stats)
+    total_got = sum(s["got"] for s in stats)
+    total_sent = sum(s["sent"] for s in stats)
+    total_err = sum(s["err"] for s in stats)
+    
+    # ساخت جدول گزارش
+    hdr = ["منبع", "دریافت", "ارسال", "خطا"]
+    w = {"منبع": 20, "دریافت": 7, "ارسال": 6, "خطا": 4}
+    
+    lines = [
+        "📊 گزارش دور جمع‌آوری اخبار",
+        f"🔄 کل منابع بررسی شده: {total_sources}",
+        f"📰 کل اخبار یافت شده: {total_got}",
+        f"✅ تعداد ارسال شده: {total_sent}",
+        f"❌ تعداد خطا: {total_err}",
+        "",
+        "  ".join(f"{h:<{w[h]}}" for h in hdr),
+        "  ".join("-" * w[h] for h in hdr)
+    ]
     
     for r in stats:
+        src_name = r["src"]
+        if len(src_name) > 18:
+            src_name = src_name[:15] + "..."
+            
         lines.append("  ".join([
-            f"{r['src']:<{w['Source']}}",
-            f"{r['got']:>{w['Got']}}",
-            f"{r['sent']:>{w['Sent']}}",
-            f"{r['err']:>{w['Err']}}"
+            f"{src_name:<{w['منبع']}}",
+            f"{r['got']:>{w['دریافت']}}",
+            f"{r['sent']:>{w['ارسال']}}",
+            f"{r['err']:>{w['خطا']}}"
         ]))
-
+    
+    lines.append("")
+    if news_sent:
+        lines.append("✅ در این دور یک خبر جدید ارسال شد")
+    else:
+        lines.append("ℹ️ در این دور خبر جدیدی یافت نشد")
+    
+    lines.append("⏰ دور بعدی تا 3 دقیقه دیگر...")
+    
     report = "<pre>" + "\n".join(lines) + "</pre>"
-    logging.info("📑 sending report")
+    logging.info("📑 ارسال گزارش جامع")
     await safe_send(bot, chat_id, report, parse_mode="HTML")
