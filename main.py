@@ -23,7 +23,7 @@ flask_app = Flask(__name__)
 
 # Global variables
 auto_news_running = False
-sent_news = set()  # ذخیره خبرهای ارسال شده - reset شده
+sent_news = set()
 
 @flask_app.route('/')
 def home():
@@ -87,7 +87,6 @@ def send():
 
 @flask_app.route('/news')
 def news():
-    """جمع‌آوری و ارسال اخبار دستی"""
     try:
         bot = Bot(token=BOT_TOKEN)
         
@@ -104,7 +103,6 @@ def news():
 
 @flask_app.route('/start-auto')
 def start_auto():
-    """شروع خبرگیری خودکار"""
     global auto_news_running
     
     if auto_news_running:
@@ -112,7 +110,6 @@ def start_auto():
     
     auto_news_running = True
     
-    # شروع thread خبرگیری خودکار (با اجرای فوری)
     auto_thread = threading.Thread(target=auto_news_worker, daemon=True)
     auto_thread.start()
     
@@ -124,7 +121,6 @@ def start_auto():
 
 @flask_app.route('/stop-auto')
 def stop_auto():
-    """توقف خبرگیری خودکار"""
     global auto_news_running
     auto_news_running = False
     
@@ -135,7 +131,6 @@ def stop_auto():
 
 @flask_app.route('/clear-cache')
 def clear_cache():
-    """پاک کردن کش خبرهای ارسال شده"""
     global sent_news
     sent_news.clear()
     
@@ -147,14 +142,11 @@ def clear_cache():
 
 @flask_app.route('/force-news')
 def force_news():
-    """اجبار ارسال خبر جدید با فرمت جدید"""
     global sent_news
     
     try:
-        # پاک کردن کش
         sent_news.clear()
         
-        # ارسال خبر جدید
         bot = Bot(token=BOT_TOKEN)
         
         loop = asyncio.new_event_loop()
@@ -174,7 +166,6 @@ def force_news():
 
 @flask_app.route('/test-translate')
 def test_translate():
-    """تست ترجمه"""
     try:
         test_text = "Trump announces new policy on immigration"
         
@@ -200,7 +191,6 @@ def test_translate():
 
 @flask_app.route('/stats')
 def stats():
-    """آمار ربات"""
     return jsonify({
         "status": "OK",
         "total_sent": len(sent_news),
@@ -211,7 +201,6 @@ def stats():
 
 @flask_app.route('/test-channel-access')
 def test_channel_access():
-    """تست دقیق دسترسی به کانال"""
     try:
         bot = Bot(token=BOT_TOKEN)
         
@@ -221,7 +210,6 @@ def test_channel_access():
         async def full_test():
             results = {}
             
-            # تست گروه ادیتورها
             try:
                 editors_chat = await bot.get_chat(EDITORS_CHAT_ID)
                 results["editors_chat"] = {
@@ -232,7 +220,6 @@ def test_channel_access():
             except Exception as e:
                 results["editors_chat"] = {"status": "ERROR", "error": str(e)}
             
-            # تست کانال
             try:
                 channel_chat = await bot.get_chat(CHANNEL_ID)
                 results["channel"] = {
@@ -242,7 +229,6 @@ def test_channel_access():
                     "username": getattr(channel_chat, 'username', None)
                 }
                 
-                # تست ارسال به کانال
                 test_msg = await bot.send_message(
                     chat_id=CHANNEL_ID,
                     text="🧪 تست دسترسی کانال - این پیام قابل حذف است"
@@ -275,13 +261,11 @@ def test_channel_access():
 
 @flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
-    """Webhook handler برای دکمه‌ها"""
     try:
         update_data = request.get_json()
         if not update_data:
             return jsonify({"status": "OK"}), 200
         
-        # بررسی callback query (کلیک روی دکمه)
         if 'callback_query' in update_data:
             callback = update_data['callback_query']
             callback_data = callback.get('data', '')
@@ -289,28 +273,24 @@ def webhook():
             message_id = callback['message']['message_id']
             
             if callback_data.startswith('forward:'):
-                # دکمه "ارسال به کانال" کلیک شده
                 news_hash = callback_data.replace('forward:', '')
                 message_text = callback['message']['text']
                 
-                # ارسال به کانال
                 bot = Bot(token=BOT_TOKEN)
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 
                 async def forward_to_channel():
                     try:
-                        # ارسال به کانال با HTML formatting
                         channel_msg = await bot.send_message(
                             chat_id=CHANNEL_ID,
                             text=message_text,
-                            parse_mode='HTML',  # تغییر از Markdown به HTML
+                            parse_mode='HTML',
                             disable_web_page_preview=False,
                             disable_notification=False,
                             protect_content=False
                         )
                         
-                        # سعی برای مخفی کردن sender (اگر ادمین channel باشیم)
                         try:
                             await bot.edit_message_reply_markup(
                                 chat_id=CHANNEL_ID,
@@ -318,15 +298,13 @@ def webhook():
                                 reply_markup=None
                             )
                         except:
-                            pass  # اگر نتونستیم edit کنیم مشکلی نیست
+                            pass
                         
-                        # پاسخ به callback query
                         await bot.answer_callback_query(
                             callback_query_id=callback['id'],
                             text="✅ خبر به کانال ارسال شد"
                         )
                         
-                        # تغییر دکمه به "ارسال شده"
                         new_keyboard = InlineKeyboardMarkup([
                             [InlineKeyboardButton("📤 ارسال شد", callback_data="sent")]
                         ])
@@ -359,12 +337,10 @@ def webhook():
         return jsonify({"status": "ERROR", "message": str(e)}), 500
 
 def auto_news_worker():
-    """Worker thread برای خبرگیری خودکار"""
     global auto_news_running
     
     logging.info("🤖 Auto news worker started")
     
-    # اجرای فوری اولین دور بدون انتظار
     try:
         logging.info("⚡ Initial news cycle (immediate)")
         bot = Bot(token=BOT_TOKEN)
@@ -381,11 +357,9 @@ def auto_news_worker():
     except Exception as e:
         logging.error(f"Initial news error: {e}")
     
-    # ادامه حلقه خبرگیری خودکار
     while auto_news_running:
         try:
-            # انتظار 3 دقیقه
-            for i in range(180):  # 180 seconds = 3 minutes
+            for i in range(180):
                 if not auto_news_running:
                     break
                 time.sleep(1)
@@ -395,7 +369,6 @@ def auto_news_worker():
                 
             logging.info("⏰ Auto news cycle started")
             
-            # اجرای خبرگیری
             bot = Bot(token=BOT_TOKEN)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -410,17 +383,14 @@ def auto_news_worker():
                 
         except Exception as e:
             logging.error(f"Auto news error: {e}")
-            time.sleep(60)  # در صورت خطا، 1 دقیقه صبر
+            time.sleep(60)
     
     logging.info("🛑 Auto news worker stopped")
 
 async def fetch_news_async_with_report(bot):
-    """جمع‌آوری اخبار با گزارش کامل - از همه منابع"""
     import feedparser
     
-    # منابع خبری کامل - ۲۷ منبع
     sources = [
-        # منابع فارسی
         {"name": "مهر", "url": "https://www.mehrnews.com/rss"},
         {"name": "فارس", "url": "https://www.farsnews.ir/rss"},
         {"name": "تسنیم", "url": "https://www.tasnimnews.com/fa/rss/feed"},
@@ -435,8 +405,6 @@ async def fetch_news_async_with_report(bot):
         {"name": "هم‌میهن", "url": "https://www.hammihanonline.ir/rss"},
         {"name": "اعتماد", "url": "https://www.etemadonline.com/rss"},
         {"name": "اصلاحات", "url": "https://www.eslahat.news/rss"},
-        
-        # منابع انگلیسی
         {"name": "Tehran Times", "url": "https://www.tehrantimes.com/rss"},
         {"name": "Iran Front Page", "url": "https://ifpnews.com/feed"},
         {"name": "ABC News", "url": "https://abcnews.go.com/abcnews/topstories"},
@@ -452,7 +420,6 @@ async def fetch_news_async_with_report(bot):
         {"name": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml"}
     ]
     
-    # آمار برای گزارش
     stats = []
     total_news_sent = 0
     sent_news_list = []
@@ -463,7 +430,6 @@ async def fetch_news_async_with_report(bot):
         try:
             logging.info(f"📡 بررسی {source['name']}")
             
-            # دریافت RSS با timeout
             try:
                 feed = feedparser.parse(source['url'])
                 if not feed.entries:
@@ -477,17 +443,14 @@ async def fetch_news_async_with_report(bot):
                 stats.append({"src": source['name'], "got": got, "sent": sent, "err": err})
                 continue
             
-            # بررسی اخبار این منبع (حداکثر 3 خبر از هر منبع)
             for i, entry in enumerate(feed.entries[:3]):
                 if got > 0:
                     title = entry.get('title', 'بدون عنوان')
                     link = entry.get('link', '')
                     
                     if title and link:
-                        # بررسی تکراری نبودن
                         news_hash = hashlib.md5(f"{source['name']}{title}".encode()).hexdigest()
                         if news_hash not in sent_news:
-                            # پردازش و ارسال خبر
                             try:
                                 result = await process_and_send_news(bot, source, entry, news_hash)
                                 if result:
@@ -498,7 +461,6 @@ async def fetch_news_async_with_report(bot):
                                         "title": title[:50] + "..."
                                     })
                                     
-                                    # فاصله بین ارسال اخبار (10 ثانیه)
                                     await asyncio.sleep(10)
                                     
                             except Exception as e:
@@ -513,7 +475,6 @@ async def fetch_news_async_with_report(bot):
             
         stats.append({"src": source['name'], "got": got, "sent": sent, "err": err})
     
-    # ارسال گزارش
     await send_report(bot, stats, total_news_sent, sent_news_list)
     
     if total_news_sent > 0:
@@ -531,12 +492,10 @@ async def fetch_news_async_with_report(bot):
         }
 
 async def process_and_send_news(bot, source, entry, news_hash):
-    """پردازش و ارسال یک خبر"""
     try:
         title = entry.get('title', 'بدون عنوان')
         link = entry.get('link', '')
         
-        # دریافت خلاصه بهتر
         summary = ""
         if hasattr(entry, 'summary') and entry.summary:
             summary = entry.summary
@@ -550,11 +509,9 @@ async def process_and_send_news(bot, source, entry, news_hash):
         else:
             summary = title
         
-        # پاک کردن HTML tags از خلاصه
         summary = re.sub(r'<[^>]+>', '', summary)
         summary = summary.strip()
         
-        # تشخیص زبان و ترجمه
         english_sources = [
             "Tehran Times", "Iran Front Page", "ABC News", "CNN", 
             "The Guardian", "Al Jazeera", "Foreign Affairs", "The Atlantic",
@@ -562,7 +519,6 @@ async def process_and_send_news(bot, source, entry, news_hash):
         ]
         
         if source['name'] in english_sources:
-            # ترجمه عنوان انگلیسی
             try:
                 logging.info(f"🔄 شروع ترجمه عنوان از {source['name']}: {title[:50]}...")
                 title_fa = await translate_text(title)
@@ -571,12 +527,11 @@ async def process_and_send_news(bot, source, entry, news_hash):
                     title = title_fa
                 else:
                     logging.warning(f"⚠️ ترجمه عنوان ناموفق، استفاده از fallback")
-                    title = f"🌍 {title}"  # نشان انگلیسی
+                    title = f"🌍 {title}"
             except Exception as e:
                 logging.error(f"❌ خطا در ترجمه عنوان: {e}")
                 title = f"🌍 {title}"
             
-            # ترجمه خلاصه انگلیسی (فقط اگر طولانی باشد)
             if len(summary) > 50:
                 try:
                     logging.info(f"🔄 شروع ترجمه خلاصه از {source['name']}: {summary[:30]}...")
@@ -593,13 +548,11 @@ async def process_and_send_news(bot, source, entry, news_hash):
             else:
                 summary = f"🌍 [English] {summary}"
         
-        # محدود کردن طول خلاصه
         if len(summary) > 400:
             summary = summary[:400] + "..."
         elif len(summary) < 100:
             summary = title
 
-        # ترجمه نام منبع به انگلیسی
         source_name_en = {
             "مهر": "Mehr News",
             "فارس": "Fars News", 
@@ -617,7 +570,6 @@ async def process_and_send_news(bot, source, entry, news_hash):
             "اصلاحات": "Eslahat News"
         }.get(source['name'], source['name'])
 
-        # فرمت پیام با HTML tags صحیح
         message_text = f"""📰 <b>{source_name_en}</b>
 
 <b>{title}</b>
@@ -629,12 +581,10 @@ async def process_and_send_news(bot, source, entry, news_hash):
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
 
-        # ساخت دکمه
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ ارسال به کانال", callback_data=f"forward:{news_hash}")]
         ])
         
-        # ارسال با HTML parse mode
         msg = await bot.send_message(
             chat_id=EDITORS_CHAT_ID,
             text=message_text,
@@ -644,7 +594,6 @@ async def process_and_send_news(bot, source, entry, news_hash):
             disable_notification=False
         )
         
-        # ذخیره در مجموعه ارسال شده
         sent_news.add(news_hash)
         
         logging.info(f"✅ خبر ارسال شد از {source['name']}: {title}")
@@ -655,14 +604,11 @@ async def process_and_send_news(bot, source, entry, news_hash):
         return False
 
 async def translate_text(text):
-    """ترجمه متن انگلیسی به فارسی - روش ساده"""
     try:
         import aiohttp
         
-        # تنظیف متن (حذف کاراکترهای اضافی)
-        text_clean = text.strip()[:300]  # محدود کردن طول
+        text_clean = text.strip()[:300]
         
-        # روش 1: MyMemory Translation API (رایگان و پایدار)
         try:
             async with aiohttp.ClientSession() as session:
                 url = "https://api.mymemory.translated.net/get"
@@ -683,7 +629,6 @@ async def translate_text(text):
         except Exception as e:
             logging.warning(f"⚠️ خطا در ترجمه روش 1: {e}")
         
-        # روش 2: Fallback - برچسب انگلیسی
         logging.info(f"⚠️ ترجمه ناموفق، استفاده از fallback")
         return None
         
@@ -692,24 +637,12 @@ async def translate_text(text):
         return None
 
 async def send_report(bot, stats, total_news_sent, sent_news_list):
-    """ارسال گزارش جامع"""
     try:
-        # محاسبه کل آمار
         total_sources = len(stats)
         total_got = sum(s["got"] for s in stats)
         total_sent = sum(s["sent"] for s in stats)
         total_err = sum(s["err"] for s in stats)
         
-async def send_report(bot, stats, total_news_sent, sent_news_list):
-    """ارسال گزارش جامع"""
-    try:
-        # محاسبه کل آمار
-        total_sources = len(stats)
-        total_got = sum(s["got"] for s in stats)
-        total_sent = sum(s["sent"] for s in stats)
-        total_err = sum(s["err"] for s in stats)
-        
-        # ساخت جدول گزارش
         lines = [
             "📊 News Collection Report",
             f"🔄 Total sources checked: {total_sources}",
@@ -723,7 +656,6 @@ async def send_report(bot, stats, total_news_sent, sent_news_list):
         
         for r in stats:
             src_name = r["src"]
-            # ترجمه نام منابع فارسی به انگلیسی برای گزارش
             src_name_en = {
                 "مهر": "Mehr News",
                 "فارس": "Fars News", 
@@ -756,7 +688,6 @@ async def send_report(bot, stats, total_news_sent, sent_news_list):
         
         report = "<pre>" + "\n".join(lines) + "</pre>"
         
-        # ارسال گزارش
         await bot.send_message(
             chat_id=EDITORS_CHAT_ID,
             text=report,
@@ -771,7 +702,6 @@ async def send_report(bot, stats, total_news_sent, sent_news_list):
 if __name__ == "__main__":
     logging.info(f"🚀 Cafe Shams News Bot starting on port {PORT}")
     
-    # شروع خودکار خبرگیری بعد از deploy
     logging.info("🔄 Auto-starting news collection...")
     auto_news_running = True
     auto_thread = threading.Thread(target=auto_news_worker, daemon=True)
