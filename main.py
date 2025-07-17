@@ -37,7 +37,8 @@ HOST = (
 if not HOST:
     sys.exit("ERROR: HOST URL missing")
 
-PORT = int(os.getenv("PORT", 8443))
+# Port handling with fallback
+PORT = int(os.getenv("PORT", "8443"))
 WEBHOOK_URL = f"https://{HOST}/{BOT_TOKEN}"
 
 # 4. ساخت اپلیکیشن
@@ -50,6 +51,10 @@ flask_app = Flask(__name__)
 @flask_app.route('/health')
 def health_check():
     return jsonify({"status": "OK", "message": "Bot is running"}), 200
+
+@flask_app.route('/')
+def index():
+    return jsonify({"status": "OK", "message": "Cafe Shams News Bot"}), 200
 
 @flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
@@ -111,13 +116,10 @@ def initialize_bot():
     except Exception as e:
         logging.error(f"Bot initialization error: {e}")
 
-# Initialize bot when module loads
-if __name__ != "__main__":
-    initialize_bot()
-
 # 8. Main execution
 if __name__ == "__main__":
     logging.info(f"Bot starting; EDITORS_CHAT_ID={EDITORS_CHAT_ID}, CHANNEL_ID={CHANNEL_ID}")
+    logging.info(f"Using PORT: {PORT}")
     
     # Initialize bot
     initialize_bot()
