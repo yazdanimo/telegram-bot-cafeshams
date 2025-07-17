@@ -526,7 +526,7 @@ async def process_and_send_news(bot, source, entry, news_hash):
 
 {summary}
 
-🔗 {link}
+🔗 <a href="{link}">مشاهده کامل خبر</a>
 
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
