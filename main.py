@@ -41,8 +41,21 @@ if not HOST:
 PORT = int(os.getenv("PORT", "8443"))
 WEBHOOK_URL = f"https://{HOST}/{BOT_TOKEN}"
 
-# 4. ساخت اپلیکیشن با custom settings
-app = ApplicationBuilder().token(BOT_TOKEN).concurrent_updates(4).pool_timeout(30).connection_pool_size(8).read_timeout(30).write_timeout(30).build()
+# 4. ساخت اپلیکیشن با تنظیمات بهینه برای Railway
+from telegram.request import HTTPXRequest
+
+# ساخت request handler بهینه شده
+request = HTTPXRequest(
+    connection_pool_size=20,     # 20 اتصال همزمان (به جای 1!)
+    pool_timeout=60.0,           # 60 ثانیه صبر برای اتصال آزاد
+    read_timeout=90.0,           # 90 ثانیه برای خواندن پاسخ
+    write_timeout=90.0,          # 90 ثانیه برای نوشتن درخواست
+    connect_timeout=45.0,        # 45 ثانیه برای برقراری اتصال
+    http_version='1.1'           # HTTP/1.1 پایدارتره
+)
+
+# ساخت application با تنظیمات بهینه
+app = ApplicationBuilder().token(BOT_TOKEN).request(request).concurrent_updates(5).build()
 app.add_handler(CallbackQueryHandler(handle_forward_news, pattern="^forward_news$"))
 
 # 5. Flask app for webhook
