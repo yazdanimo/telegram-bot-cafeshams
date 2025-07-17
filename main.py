@@ -119,7 +119,118 @@ def stop_auto():
         "message": "Auto news stopped"
     })
 
-@flask_app.route('/stats')
+@flask_app.route('/test-channel-access')
+def test_channel_access():
+    """تست دقیق دسترسی به کانال"""
+    try:
+        bot = Bot(token=BOT_TOKEN)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def full_test():
+            results = {}
+            
+            # تست گروه ادیتورها
+            try:
+                editors_chat = await bot.get_chat(EDITORS_CHAT_ID)
+                results["editors_chat"] = {
+                    "status": "OK",
+                    "title": editors_chat.title,
+                    "type": editors_chat.type
+                }
+            except Exception as e:
+                results["editors_chat"] = {"status": "ERROR", "error": str(e)}
+            
+            # تست کانال
+            try:
+                channel_chat = await bot.get_chat(CHANNEL_ID)
+                results["channel"] = {
+                    "status": "OK", 
+                    "title": channel_chat.title,
+                    "type": channel_chat.type,
+                    "username": getattr(channel_chat, 'username', None)
+                }
+                
+                # تست ارسال به کانال
+                test_msg = await bot.send_message(
+                    chat_id=CHANNEL_ID,
+                    text="🧪 تست دسترسی کانال - این پیام قابل حذف است"
+                )
+                results["channel"]["send_test"] = {
+                    "status": "SUCCESS",
+                    "message_id": test_msg.message_id
+                }
+                
+            except Exception as e:
+                results["channel"] = {
+                    "status": "ERROR", 
+                    "error": str(e),
+                    "channel_id": CHANNEL_ID
+                }
+            
+            return results
+        
+        results = loop.run_until_complete(full_test())
+        loop.close()
+        
+        return jsonify({
+            "status": "COMPLETED",
+            "results": results,
+            "suggestion": "If channel test failed, add bot as admin to @cafeshamss"
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "ERROR", "error": str(e)})
+def check_channel():
+    """بررسی دسترسی به کانال"""
+    try:
+        bot = Bot(token=BOT_TOKEN)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def check():
+            try:
+                # بررسی دسترسی به کانال
+                chat = await bot.get_chat(CHANNEL_ID)
+                
+                return {
+                    "status": "SUCCESS",
+                    "channel_id": CHANNEL_ID,
+                    "channel_title": chat.title,
+                    "channel_type": chat.type,
+                    "channel_username": getattr(chat, 'username', 'No username')
+                }
+                
+            except Exception as e:
+                return {
+                    "status": "ERROR",
+                    "channel_id": CHANNEL_ID, 
+                    "error": str(e),
+                    "suggestion": "Add bot as admin to channel or check CHANNEL_ID"
+                }
+        
+        result = loop.run_until_complete(check())
+        loop.close()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"status": "ERROR", "error": str(e)})
+
+@flask_app.route('/fix-channel')
+def fix_channel():
+    """موقتاً channel رو برابر editors chat کن"""
+    global CHANNEL_ID
+    CHANNEL_ID = EDITORS_CHAT_ID
+    
+    return jsonify({
+        "status": "FIXED",
+        "message": "Channel ID set to editors chat temporarily",
+        "channel_id": CHANNEL_ID,
+        "editors_chat": EDITORS_CHAT_ID
+    })
 def stats():
     """آمار ربات"""
     return jsonify({
@@ -157,14 +268,25 @@ def webhook():
                 
                 async def forward_to_channel():
                     try:
-                        # ارسال به کانال با instant view
-                        await bot.send_message(
+                        # ارسال به کانال با sender مخفی
+                        channel_msg = await bot.send_message(
                             chat_id=CHANNEL_ID,
                             text=message_text,
                             parse_mode='Markdown',
-                            disable_web_page_preview=False,  # Enable instant view
-                            disable_notification=False
+                            disable_web_page_preview=False,
+                            disable_notification=False,
+                            protect_content=False
                         )
+                        
+                        # سعی برای مخفی کردن sender (اگر ادمین channel باشیم)
+                        try:
+                            await bot.edit_message_reply_markup(
+                                chat_id=CHANNEL_ID,
+                                message_id=channel_msg.message_id,
+                                reply_markup=None
+                            )
+                        except:
+                            pass  # اگر نتونستیم edit کنیم مشکلی نیست
                         
                         # پاسخ به callback query
                         await bot.answer_callback_query(
