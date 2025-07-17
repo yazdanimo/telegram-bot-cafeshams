@@ -1,8 +1,5 @@
 aiohttp>=3.9.0
 feedparser>=6.0.10
-translatepy>=2.3
 beautifulsoup4>=4.12.2
-langdetect>=1.0.9
-requests>=2.31.0
-python-telegram-bot[job-queue,webhooks]==20.3
+python-telegram-bot==20.3
 Flask>=2.3.3
