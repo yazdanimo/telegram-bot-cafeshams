@@ -88,7 +88,19 @@ def send():
 @flask_app.route('/news')
 def news():
     """جمع‌آوری و ارسال اخبار دستی"""
-    return fetch_and_send_news_sync()
+    try:
+        bot = Bot(token=BOT_TOKEN)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        result = loop.run_until_complete(fetch_news_async_with_report(bot))
+        loop.close()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"status": "ERROR", "error": str(e)})
 
 @flask_app.route('/start-auto')
 def start_auto():
@@ -100,13 +112,13 @@ def start_auto():
     
     auto_news_running = True
     
-    # شروع thread خبرگیری خودکار
+    # شروع thread خبرگیری خودکار (با اجرای فوری)
     auto_thread = threading.Thread(target=auto_news_worker, daemon=True)
     auto_thread.start()
     
     return jsonify({
         "status": "STARTED",
-        "message": "Auto news started - every 3 minutes",
+        "message": "Auto news started - immediate first run, then every 3 minutes",
         "interval": "180 seconds"
     })
 
@@ -281,180 +293,11 @@ def webhook():
         logging.error(f"Webhook error: {e}")
         return jsonify({"status": "ERROR", "message": str(e)}), 500
 
-def fetch_and_send_news_sync():
-    """جمع‌آوری اخبار (sync wrapper)"""
-    try:
-        bot = Bot(token=BOT_TOKEN)
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        result = loop.run_until_complete(fetch_news_async(bot))
-        loop.close()
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({"status": "ERROR", "error": str(e)})
+# حذف تابع قدیمی که دیگه استفاده نمیشه
+# def fetch_and_send_news_sync() - حذف شده
 
-async def fetch_news_async(bot):
-    """جمع‌آوری اخبار (async)"""
-    import feedparser
-    
-    # منابع خبری کامل - ۲۷ منبع
-    sources = [
-        # منابع فارسی
-        {"name": "مهر", "url": "https://www.mehrnews.com/rss"},
-        {"name": "فارس", "url": "https://www.farsnews.ir/rss"},
-        {"name": "تسنیم", "url": "https://www.tasnimnews.com/fa/rss/feed"},
-        {"name": "ایرنا", "url": "https://www.irna.ir/rss"},
-        {"name": "ایسنا", "url": "https://www.isna.ir/rss"},
-        {"name": "همشهری آنلاین", "url": "https://www.hamshahrionline.ir/rss"},
-        {"name": "خبر آنلاین", "url": "https://www.khabaronline.ir/rss"},
-        {"name": "مشرق", "url": "https://www.mashreghnews.ir/rss"},
-        {"name": "انتخاب", "url": "https://www.entekhab.ir/fa/rss/allnews"},
-        {"name": "جماران", "url": "https://www.jamaran.news/rss"},
-        {"name": "آخرین خبر", "url": "https://www.akharinkhabar.ir/rss"},
-        {"name": "هم‌میهن", "url": "https://www.hammihanonline.ir/rss"},
-        {"name": "اعتماد", "url": "https://www.etemadonline.com/rss"},
-        {"name": "اصلاحات", "url": "https://www.eslahat.news/rss"},
-        
-        # منابع انگلیسی
-        {"name": "Tehran Times", "url": "https://www.tehrantimes.com/rss"},
-        {"name": "Iran Front Page", "url": "https://ifpnews.com/feed"},
-        {"name": "ABC News", "url": "https://abcnews.go.com/abcnews/topstories"},
-        {"name": "CNN", "url": "http://rss.cnn.com/rss/cnn_topstories.rss"},
-        {"name": "The Guardian", "url": "https://www.theguardian.com/world/rss"},
-        {"name": "Al Jazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml"},
-        {"name": "Foreign Affairs", "url": "https://www.foreignaffairs.com/rss.xml"},
-        {"name": "The Atlantic", "url": "https://www.theatlantic.com/feed/all"},
-        {"name": "Brookings", "url": "https://www.brookings.edu/feed"},
-        {"name": "Carnegie", "url": "https://carnegieendowment.org/rss"},
-        {"name": "Reuters", "url": "https://feeds.reuters.com/reuters/topNews"},
-        {"name": "AP News", "url": "https://apnews.com/rss"},
-        {"name": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml"}
-    ]
-    
-    for source in sources:
-        try:
-            logging.info(f"📡 بررسی {source['name']}")
-            
-            # دریافت RSS با timeout
-            try:
-                feed = feedparser.parse(source['url'])
-                if not feed.entries:
-                    logging.warning(f"⚠️ {source['name']}: هیچ خبری یافت نشد")
-                    continue
-            except Exception as e:
-                logging.error(f"❌ {source['name']}: خطا در RSS - {e}")
-                continue
-            
-            entry = feed.entries[0]
-            title = entry.get('title', 'بدون عنوان')
-            link = entry.get('link', '')
-            
-            if not title or not link:
-                continue
-            
-            # بررسی تکراری نبودن
-            news_hash = hashlib.md5(f"{source['name']}{title}".encode()).hexdigest()
-            if news_hash in sent_news:
-                logging.info(f"🔄 {source['name']}: خبر تکراری - رد شد")
-                continue
-            
-            # دریافت خلاصه بهتر
-            summary = ""
-            if hasattr(entry, 'summary') and entry.summary:
-                summary = entry.summary
-            elif hasattr(entry, 'description') and entry.description:
-                summary = entry.description
-            elif hasattr(entry, 'content') and entry.content:
-                if isinstance(entry.content, list) and len(entry.content) > 0:
-                    summary = entry.content[0].value
-                else:
-                    summary = str(entry.content)
-            else:
-                summary = title
-            
-            # پاک کردن HTML tags از خلاصه
-            summary = re.sub(r'<[^>]+>', '', summary)
-            summary = summary.strip()
-            
-            # محدود کردن طول خلاصه
-            if len(summary) > 400:
-                summary = summary[:400] + "..."
-            elif len(summary) < 100:
-                summary = title  # اگر خلاصه خیلی کوتاه بود، از عنوان استفاده کن
-
-            # ترجمه نام منبع به انگلیسی
-            source_name_en = {
-                "مهر": "Mehr News",
-                "فارس": "Fars News", 
-                "تسنیم": "Tasnim News",
-                "ایرنا": "IRNA",
-                "ایسنا": "ISNA",
-                "همشهری آنلاین": "Hamshahri Online",
-                "خبر آنلاین": "Khabar Online",
-                "مشرق": "Mashregh News",
-                "انتخاب": "Entekhab News",
-                "جماران": "Jamaran",
-                "آخرین خبر": "Akharin Khabar",
-                "هم‌میهن": "HamMihan",
-                "اعتماد": "Etemad",
-                "اصلاحات": "Eslahat News"
-            }.get(source['name'], source['name'])
-
-            # فرمت پیام با styling زیبا و instant view
-            message_text = f"""📰 **{source_name_en}**
-
-**{title}**
-
-{summary}
-
-🔗 {link}
-
-🆔 @cafeshamss     
-کافه شمس ☕️🍪"""
-
-            # ساخت دکمه
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ ارسال به کانال", callback_data=f"forward:{news_hash}")]
-            ])
-            
-            # ارسال به گروه ادیتورها با parse_mode برای styling و instant view
-            msg = await bot.send_message(
-                chat_id=EDITORS_CHAT_ID,
-                text=message_text,
-                reply_markup=keyboard,
-                parse_mode='Markdown',
-                disable_web_page_preview=False,  # Enable instant view
-                disable_notification=False
-            )
-            
-            # ذخیره در مجموعه ارسال شده
-            sent_news.add(news_hash)
-            
-            logging.info(f"✅ خبر ارسال شد از {source['name']}: {title}")
-            
-            return {
-                "status": "SUCCESS",
-                "source": source['name'],
-                "title": title,
-                "message_id": msg.message_id,
-                "link": link,
-                "hash": news_hash,
-                "total_sources": len(sources)
-            }
-                
-        except Exception as e:
-            logging.error(f"❌ خطا در {source['name']}: {e}")
-            continue
-    
-    return {
-        "status": "NO_NEWS", 
-        "message": "هیچ خبر جدیدی در هیچ‌کدام از ۲۷ منبع یافت نشد",
-        "total_sources_checked": len(sources)
-    }
+# حذف تابع قدیمی که دیگه استفاده نمیشه  
+# async def fetch_news_async() - حذف شده
 
 def auto_news_worker():
     """Worker thread برای خبرگیری خودکار"""
@@ -462,8 +305,35 @@ def auto_news_worker():
     
     logging.info("🤖 Auto news worker started")
     
+    # اجرای فوری اولین دور بدون انتظار
+    try:
+        logging.info("⚡ Initial news cycle (immediate)")
+        bot = Bot(token=BOT_TOKEN)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        result = loop.run_until_complete(fetch_news_async_with_report(bot))
+        loop.close()
+        
+        if result["status"] == "SUCCESS":
+            logging.info(f"✅ Initial news: {result['title']}")
+        else:
+            logging.info("ℹ️ Initial news: No new news found")
+    except Exception as e:
+        logging.error(f"Initial news error: {e}")
+    
+    # ادامه حلقه خبرگیری خودکار
     while auto_news_running:
         try:
+            # انتظار 3 دقیقه
+            for i in range(180):  # 180 seconds = 3 minutes
+                if not auto_news_running:
+                    break
+                time.sleep(1)
+            
+            if not auto_news_running:
+                break
+                
             logging.info("⏰ Auto news cycle started")
             
             # اجرای خبرگیری
@@ -478,12 +348,6 @@ def auto_news_worker():
                 logging.info(f"✅ Auto news: {result['title']}")
             else:
                 logging.info("ℹ️ Auto news: No new news found")
-            
-            # انتظار 3 دقیقه
-            for i in range(180):  # 180 seconds = 3 minutes
-                if not auto_news_running:
-                    break
-                time.sleep(1)
                 
         except Exception as e:
             logging.error(f"Auto news error: {e}")
