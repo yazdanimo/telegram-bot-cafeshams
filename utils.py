@@ -1,233 +1,93 @@
-import json
 import os
-import logging
+import sys
+import json
 import re
-from bs4 import BeautifulSoup
-from langdetect import detect
+import time
 import asyncio
+import logging
+from bs4 import BeautifulSoup
+from telegram.error import RetryAfter
+
+BASE_DIR     = os.path.dirname(__file__)
+SOURCES_PATH = os.path.join(BASE_DIR, "sources.json")
+
+SEND_INTERVAL = 15
+LAST_SEND     = 0
 
 def load_sources():
-    """Load news sources from sources.json"""
+    if not os.path.exists(SOURCES_PATH):
+        sys.exit(f"ERROR: sources.json not found at {SOURCES_PATH}")
     try:
-        with open("sources.json", "r", encoding="utf-8") as f:
+        with open(SOURCES_PATH, encoding="utf-8") as f:
             return json.load(f)
-    except FileNotFoundError:
-        logging.error("sources.json not found")
-        return []
-    except Exception as e:
-        logging.error(f"Error loading sources: {e}")
-        return []
+    except json.JSONDecodeError as e:
+        sys.exit(f"ERROR: Invalid JSON in sources.json:\n  {e}")
 
-def load_set(filename: str) -> set:
-    """Load a set from JSON file"""
+def load_set(path: str) -> set:
     try:
-        if os.path.exists(filename):
-            with open(filename, "r", encoding="utf-8") as f:
-                return set(json.load(f))
-    except Exception as e:
-        logging.error(f"Error loading {filename}: {e}")
-    return set()
+        with open(path, "r", encoding="utf-8") as f:
+            return set(json.load(f))
+    except:
+        return set()
 
-def save_set(data: set, filename: str):
-    """Save a set to JSON file"""
-    try:
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(list(data), f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logging.error(f"Error saving {filename}: {e}")
+def save_set(data: set, path: str):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(list(data), f, ensure_ascii=False, indent=2)
 
 def extract_full_content(html: str) -> str:
-    """Extract main content from HTML"""
-    if not html:
-        return ""
-    
-    try:
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        # Remove unwanted elements
-        for tag in soup.find_all(['script', 'style', 'nav', 'footer', 'header', 'aside']):
-            tag.decompose()
-        
-        # Try to find main content
-        content = ""
-        
-        # Look for common content containers
-        for selector in [
-            'article', 
-            '.content', 
-            '.post-content', 
-            '.entry-content',
-            '.article-content',
-            '.news-content',
-            'main',
-            '.main-content'
-        ]:
-            element = soup.select_one(selector)
-            if element:
-                content = element.get_text(strip=True)
-                break
-        
-        # If no main content found, get all text
-        if not content:
-            content = soup.get_text(strip=True)
-        
-        # Clean up content
-        content = re.sub(r'\s+', ' ', content)
-        content = re.sub(r'\n+', '\n', content)
-        
-        return content[:2000]  # Limit length
-        
-    except Exception as e:
-        logging.error(f"Error extracting content: {e}")
-        return ""
+    soup = BeautifulSoup(html, "html.parser")
+    article = soup.find("article")
+    if article:
+        return article.get_text("\n").strip()
+    return "\n".join(p.get_text() for p in soup.find_all("p")).strip()
 
-def summarize_fa(text: str) -> str:
-    """Summarize Persian text"""
-    if not text:
-        return ""
-    
-    try:
-        # Simple summarization: take first few sentences
-        sentences = text.split('.')
-        summary_sentences = []
-        
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if sentence and len(sentence) > 20:
-                summary_sentences.append(sentence)
-                if len(summary_sentences) >= 3:
-                    break
-        
-        summary = '. '.join(summary_sentences)
-        if summary and not summary.endswith('.'):
-            summary += '.'
-        
-        return summary[:500]  # Limit length
-        
-    except Exception as e:
-        logging.error(f"Error summarizing Persian text: {e}")
-        return text[:300]
+def summarize_fa(text: str, max_s: int = 2) -> str:
+    parts = re.split(r"[.؟!]\s*", text)
+    summary = [p.strip() for p in parts if p.strip()]
+    return "؛ ".join(summary[:max_s])
 
-def summarize_en(text: str) -> str:
-    """Summarize English text"""
-    if not text:
-        return ""
-    
-    try:
-        # Simple summarization: take first few sentences
-        sentences = text.split('.')
-        summary_sentences = []
-        
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if sentence and len(sentence) > 20:
-                summary_sentences.append(sentence)
-                if len(summary_sentences) >= 3:
-                    break
-        
-        summary = '. '.join(summary_sentences)
-        if summary and not summary.endswith('.'):
-            summary += '.'
-        
-        return summary[:500]  # Limit length
-        
-    except Exception as e:
-        logging.error(f"Error summarizing English text: {e}")
-        return text[:300]
+def summarize_en(text: str, max_s: int = 2) -> str:
+    parts = re.split(r"[.?!]\s*", text)
+    summary = [p.strip() for p in parts if p.strip()]
+    return ". ".join(summary[:max_s])
 
-def format_news(source_name: str, title: str, summary: str, link: str) -> str:
-    """Format news for sending"""
-    try:
-        # Clean title
-        title = title.strip()
-        if len(title) > 100:
-            title = title[:97] + "..."
-        
-        # Clean summary
-        summary = summary.strip()
-        if len(summary) > 400:
-            summary = summary[:397] + "..."
-        
-        # Format message
-        formatted = f"📰 {source_name}\n\n"
-        formatted += f"🔸 {title}\n\n"
-        formatted += f"{summary}\n\n"
-        formatted += f"🔗 {link}"
-        
-        return formatted
-        
-    except Exception as e:
-        logging.error(f"Error formatting news: {e}")
-        return f"📰 {source_name}\n\n{title}\n\n{link}"
+def format_news(source: str, title: str, summary: str, link: str) -> str:
+    # پاکسازی خلاصه از newlineهای اضافی
+    clean_summary = summary.replace("\n", " ").strip()
+
+    # بولد کردن نام منبع و تیتر با Markdown
+    return (
+        f"*📰 {source}*\n\n"
+        f"*{title}*\n\n"
+        f"{clean_summary}\n\n"
+        f"🔗 مشاهده کامل خبر ({link})\n"
+        f"🆔 @cafeshamss\n"
+        f"کافه شمس ☕️🍪"
+    )
 
 def is_garbage(text: str) -> bool:
-    """Check if text is garbage/low quality"""
-    if not text or len(text.strip()) < 50:
+    t = text.strip()
+    if len(t) < 40:
         return True
-    
-    try:
-        # Check for common garbage patterns
-        garbage_patterns = [
-            r'^[\s\W]+$',  # Only whitespace and symbols
-            r'^\d+$',      # Only numbers
-            r'^[a-zA-Z\s]+$' if len(text) < 20 else None,  # Very short English
-        ]
-        
-        for pattern in garbage_patterns:
-            if pattern and re.match(pattern, text):
-                return True
-        
-        # Check for repetitive content
-        words = text.split()
-        if len(words) > 0:
-            unique_words = set(words)
-            if len(unique_words) / len(words) < 0.3:  # Too repetitive
-                return True
-        
-        return False
-        
-    except Exception as e:
-        logging.error(f"Error checking garbage: {e}")
-        return False
+    lower = t.lower()
+    for kw in ["ثبت نام", "ورود", "login", "register", "signup", "رمز عبور"]:
+        if kw in lower:
+            return True
+    return False
 
-async def safe_send(bot, chat_id: int, text: str, **kwargs):
-    """ارسال امن پیام با مدیریت خطا و retry منطقی"""
-    import random
-    
-    max_retries = 3
-    base_delay = 2.0
-    
-    for attempt in range(max_retries):
-        try:
-            # ارسال پیام با timeout های افزایش یافته
-            message = await bot.send_message(
-                chat_id=chat_id, 
-                text=text,
-                **kwargs
-            )
-            logging.info(f"✅ پیام با موفقیت ارسال شد به {chat_id}")
-            return message
-            
-        except Exception as e:
-            error_msg = str(e)
-            logging.error(f"❌ تلاش {attempt + 1} ناموفق: {error_msg}")
-            
-            # اگر مشکل pool timeout هست
-            if "Pool timeout" in error_msg or "Event loop is closed" in error_msg:
-                if attempt < max_retries - 1:
-                    # محاسبه زمان انتظار با jitter
-                    delay = base_delay * (2 ** attempt)  # 2, 4, 8 ثانیه
-                    jitter = random.uniform(0, delay * 0.2)  # 20% تصادفی
-                    wait_time = delay + jitter
-                    
-                    logging.info(f"⏳ انتظار {wait_time:.1f} ثانیه قبل از تلاش مجدد...")
-                    await asyncio.sleep(wait_time)
-                else:
-                    logging.error(f"💥 ارسال پس از {max_retries} تلاش ناموفق بود")
-                    raise e
-            else:
-                # برای خطاهای دیگر، سریعتر retry کن
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(1)
-                else:
-                    raise e
+async def safe_send(bot, chat_id, text, **kwargs):
+    global LAST_SEND
+    try:
+        diff = time.time() - LAST_SEND
+        if diff < SEND_INTERVAL:
+            await asyncio.sleep(SEND_INTERVAL - diff)
+        res = await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+        LAST_SEND = time.time()
+        return res
+    except RetryAfter as e:
+        wait = e.retry_after + 1
+        logging.warning(f"🌊 Flood control, sleeping for {wait}s")
+        await asyncio.sleep(wait)
+        res = await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+        LAST_SEND = time.time()
+        return res
