@@ -6,8 +6,9 @@ import threading
 import time
 import re
 import hashlib
+import json
 from flask import Flask, jsonify, request
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -23,7 +24,31 @@ flask_app = Flask(__name__)
 
 # Global variables
 auto_news_running = False
-sent_news = set()
+sent_news_persistent = set()  # Set برای جلوگیری از تکرار بین گزارش‌ها
+
+def load_sent_news():
+    """بارگذاری خبرهای ارسال شده از فایل"""
+    global sent_news_persistent
+    try:
+        if os.path.exists("sent_news.json"):
+            with open("sent_news.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+                sent_news_persistent = set(data)
+                logging.info(f"📁 بارگذاری {len(sent_news_persistent)} خبر ارسال شده از فایل")
+        else:
+            sent_news_persistent = set()
+    except Exception as e:
+        logging.error(f"خطا در بارگذاری فایل sent_news: {e}")
+        sent_news_persistent = set()
+
+def save_sent_news():
+    """ذخیره خبرهای ارسال شده در فایل"""
+    try:
+        with open("sent_news.json", "w", encoding="utf-8") as f:
+            json.dump(list(sent_news_persistent), f, ensure_ascii=False, indent=2)
+        logging.info(f"💾 ذخیره {len(sent_news_persistent)} خبر در فایل")
+    except Exception as e:
+        logging.error(f"خطا در ذخیره فایل sent_news: {e}")
 
 @flask_app.route('/')
 def home():
@@ -131,21 +156,23 @@ def stop_auto():
 
 @flask_app.route('/clear-cache')
 def clear_cache():
-    global sent_news
-    sent_news.clear()
+    global sent_news_persistent
+    sent_news_persistent.clear()
+    save_sent_news()
     
     return jsonify({
         "status": "OK",
-        "message": "News cache cleared - next news will use new format",
-        "cache_size": len(sent_news)
+        "message": "News cache cleared permanently",
+        "cache_size": len(sent_news_persistent)
     })
 
 @flask_app.route('/force-news')
 def force_news():
-    global sent_news
+    global sent_news_persistent
     
     try:
-        sent_news.clear()
+        # فقط اگر کاربر بخواد کش پاک بشه
+        # sent_news_persistent.clear()
         
         bot = Bot(token=BOT_TOKEN)
         
@@ -157,7 +184,7 @@ def force_news():
         
         return jsonify({
             "status": "SUCCESS",
-            "message": "Cache cleared and fresh news sent with new format",
+            "message": "Fresh news sent (cache preserved)",
             "result": result
         })
         
@@ -193,7 +220,7 @@ def test_translate():
 def stats():
     return jsonify({
         "status": "OK",
-        "total_sent": len(sent_news),
+        "total_sent": len(sent_news_persistent),
         "auto_running": auto_news_running,
         "editors_chat": EDITORS_CHAT_ID,
         "channel_id": CHANNEL_ID
@@ -258,109 +285,6 @@ def test_channel_access():
         
     except Exception as e:
         return jsonify({"status": "ERROR", "error": str(e)})
-
-@flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    try:
-        update_data = request.get_json()
-        if not update_data:
-            return jsonify({"status": "OK"}), 200
-        
-        logging.info(f"📨 Webhook received: {str(update_data)[:200]}...")
-        
-        if 'callback_query' in update_data:
-            callback = update_data['callback_query']
-            callback_data = callback.get('data', '')
-            chat_id = callback['message']['chat']['id']
-            message_id = callback['message']['message_id']
-            
-            logging.info(f"🔘 Button clicked: {callback_data}")
-            
-            if callback_data.startswith('forward:'):
-                news_hash = callback_data.replace('forward:', '')
-                message_text = callback['message']['text']
-                
-                logging.info(f"📤 Forward request for hash: {news_hash}")
-                
-                bot = Bot(token=BOT_TOKEN)
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                async def forward_to_channel():
-                    try:
-                        logging.info(f"📤 Sending to channel {CHANNEL_ID}")
-                        
-                        channel_msg = await bot.send_message(
-                            chat_id=CHANNEL_ID,
-                            text=message_text,
-                            parse_mode='HTML',
-                            disable_web_page_preview=False,
-                            disable_notification=False
-                        )
-                        
-                        logging.info(f"✅ Message sent to channel: {channel_msg.message_id}")
-                        
-                        await bot.answer_callback_query(
-                            callback_query_id=callback['id'],
-                            text="✅ خبر با موفقیت به کانال ارسال شد",
-                            show_alert=False
-                        )
-                        
-                        new_keyboard = InlineKeyboardMarkup([
-                            [InlineKeyboardButton("📤 ارسال شد", callback_data="sent")]
-                        ])
-                        
-                        await bot.edit_message_reply_markup(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            reply_markup=new_keyboard
-                        )
-                        
-                        return True
-                        
-                    except Exception as e:
-                        logging.error(f"❌ Forward error: {e}")
-                        
-                        try:
-                            await bot.answer_callback_query(
-                                callback_query_id=callback['id'],
-                                text=f"❌ خطا در ارسال: {str(e)[:50]}",
-                                show_alert=True
-                            )
-                        except:
-                            pass
-                        
-                        return False
-                
-                result = loop.run_until_complete(forward_to_channel())
-                loop.close()
-                
-                logging.info(f"📤 Forward result: {'Success' if result else 'Failed'}")
-            
-            elif callback_data == "sent":
-                # دکمه قبلاً فشرده شده
-                try:
-                    bot = Bot(token=BOT_TOKEN)
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    
-                    async def respond():
-                        await bot.answer_callback_query(
-                            callback_query_id=callback['id'],
-                            text="این خبر قبلاً ارسال شده است",
-                            show_alert=False
-                        )
-                    
-                    loop.run_until_complete(respond())
-                    loop.close()
-                except Exception as e:
-                    logging.error(f"Sent button error: {e}")
-        
-        return jsonify({"status": "OK"}), 200
-        
-    except Exception as e:
-        logging.error(f"❌ Webhook error: {e}")
-        return jsonify({"status": "ERROR", "message": str(e)}), 500
 
 def auto_news_worker():
     global auto_news_running
@@ -476,7 +400,7 @@ async def fetch_news_async_with_report(bot):
                     
                     if title and link:
                         news_hash = hashlib.md5(f"{source['name']}{title}".encode()).hexdigest()
-                        if news_hash not in sent_news:
+                        if news_hash not in sent_news_persistent:
                             try:
                                 result = await process_and_send_news(bot, source, entry, news_hash)
                                 if result:
@@ -486,6 +410,10 @@ async def fetch_news_async_with_report(bot):
                                         "source": source['name'],
                                         "title": title[:50] + "..."
                                     })
+                                    
+                                    # ذخیره hash در فایل برای جلوگیری از تکرار
+                                    sent_news_persistent.add(news_hash)
+                                    save_sent_news()
                                     
                                     await asyncio.sleep(10)
                                     
@@ -629,20 +557,16 @@ async def process_and_send_news(bot, source, entry, news_hash):
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
 
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ ارسال به کانال", callback_data=f"forward:{news_hash}")]
-        ])
-        
+        # حذف دکمه - ارسال مستقیم بدون دکمه
         msg = await bot.send_message(
             chat_id=EDITORS_CHAT_ID,
             text=message_text,
-            reply_markup=keyboard,
             parse_mode='HTML',
             disable_web_page_preview=False,
             disable_notification=False
         )
         
-        sent_news.add(news_hash)
+        # hash رو در فایل ذخیره نکن اینجا چون بالاتر ذخیره شده
         
         logging.info(f"✅ خبر ارسال شد از {source['name']}: {title}")
         return True
@@ -750,6 +674,10 @@ async def send_report(bot, stats, total_news_sent, sent_news_list):
 if __name__ == "__main__":
     logging.info(f"🚀 Cafe Shams News Bot starting on port {PORT}")
     
+    # بارگذاری خبرهای ارسال شده از فایل
+    load_sent_news()
+    
+    # شروع خودکار خبرگیری بعد از deploy
     logging.info("🔄 Auto-starting news collection...")
     auto_news_running = True
     auto_thread = threading.Thread(target=auto_news_worker, daemon=True)
