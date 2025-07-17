@@ -63,14 +63,22 @@ def webhook():
             update_data = request.get_json()
             if update_data:
                 update = Update.de_json(update_data, app.bot)
-                # Process update in background thread
+                # Process update in background thread with proper async context
                 def process_update():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
                     try:
-                        loop.run_until_complete(app.process_update(update))
-                    finally:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        
+                        async def handle_update():
+                            # Ensure app is initialized in this context
+                            if not app.running:
+                                await app.initialize()
+                            await app.process_update(update)
+                        
+                        loop.run_until_complete(handle_update())
                         loop.close()
+                    except Exception as e:
+                        logging.error(f"Error processing update: {e}")
                 
                 thread = threading.Thread(target=process_update)
                 thread.daemon = True
@@ -103,6 +111,10 @@ def initialize_bot():
         asyncio.set_event_loop(loop)
         
         async def setup():
+            # Initialize application
+            await app.initialize()
+            logging.info("Application initialized")
+            
             # Set webhook
             await app.bot.set_webhook(WEBHOOK_URL)
             logging.info(f"Webhook set: {WEBHOOK_URL}")
