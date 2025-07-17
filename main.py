@@ -23,7 +23,19 @@ flask_app = Flask(__name__)
 
 # Global variables
 auto_news_running = False
-sent_news = set()  # ذخیره خبرهای ارسال شده
+sent_news = set()  # ذخیره خبرهای ارسال شده - reset شده
+
+@flask_app.route('/clear-cache')
+def clear_cache():
+    """پاک کردن کش خبرهای ارسال شده"""
+    global sent_news
+    sent_news.clear()
+    
+    return jsonify({
+        "status": "OK",
+        "message": "News cache cleared - next news will use new format",
+        "cache_size": len(sent_news)
+    })
 
 @flask_app.route('/')
 def home():
@@ -526,7 +538,7 @@ async def process_and_send_news(bot, source, entry, news_hash):
 
 {summary}
 
-🔗 <a href="{link}">مشاهده کامل خبر</a>
+🔗 {link}
 
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
