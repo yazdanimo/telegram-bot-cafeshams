@@ -21,8 +21,8 @@ from utils import (
 )
 from handlers import send_news_with_button
 
-SEND_INTERVAL = 10  # کاهش یافته
-MAX_PER_SOURCE = 2  # کاهش یافته
+SEND_INTERVAL = 15  # افزایش یافته برای جلوگیری از pool timeout
+MAX_PER_SOURCE = 1  # کاهش یافته برای کاهش بار
 FILES = {
     "urls": "sent_urls.json",
     "hashes": "sent_hashes.json",
@@ -144,8 +144,12 @@ async def fetch_and_send_news(bot, chat_id, sent_urls: set, sent_hashes: set):
                         new_h.add(h)
                         sent += 1
                         
-                        # Delay between sends
+                        # Longer delay between sends to prevent pool timeout
                         await asyncio.sleep(SEND_INTERVAL)
+                        
+                        # Force cleanup connections periodically
+                        if sent % 3 == 0:
+                            await asyncio.sleep(5)  # Extra pause every 3 messages
                         
                     except Exception as e:
                         logging.error(f"Error processing entry from {name}: {e}")
