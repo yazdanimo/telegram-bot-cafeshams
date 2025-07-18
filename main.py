@@ -7,6 +7,8 @@ import time
 import re
 import hashlib
 import json
+import tempfile
+import textwrap
 from flask import Flask, jsonify, request
 from telegram import Bot
 
@@ -25,6 +27,8 @@ flask_app = Flask(__name__)
 # Global variables
 auto_news_running = False
 sent_news_persistent = set()  # Set برای جلوگیری از تکرار بین گزارش‌ها
+important_news_queue = []  # صف اخبار مهم برای ویدیو
+last_video_time = 0  # زمان آخرین ویدیو تولیدی
 
 def load_sent_news():
     """بارگذاری خبرهای ارسال شده از فایل"""
@@ -57,7 +61,7 @@ def home():
         "message": "Cafe Shams News Bot - Production Ready",
         "version": "v2.0-translate",
         "auto_news": auto_news_running,
-        "endpoints": ["/health", "/test", "/send", "/news", "/start-auto", "/stop-auto", "/stats", "/test-channel-access", "/clear-cache", "/force-news", "/test-translate"]
+        "endpoints": ["/health", "/test", "/send", "/news", "/start-auto", "/stop-auto", "/stats", "/debug-news", "/generate-video-clip", "/video-queue-status", "/test-channel-access", "/clear-cache", "/force-news", "/test-translate"]
     })
 
 @flask_app.route('/health')
@@ -216,7 +220,68 @@ def test_translate():
     except Exception as e:
         return jsonify({"status": "ERROR", "error": str(e)})
 
-@flask_app.route('/stats')
+@flask_app.route('/debug-news')
+def debug_news():
+    """تست و عیب‌یابی خبرهای مشکل‌دار"""
+    try:
+        bot = Bot(token=BOT_TOKEN)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def debug_sources():
+            import feedparser
+            debug_info = []
+            
+            # تست چند منبع اصلی
+            test_sources = [
+                {"name": "مهر", "url": "https://www.mehrnews.com/rss"},
+                {"name": "مشرق", "url": "https://www.mashreghnews.ir/rss"}
+            ]
+            
+            for source in test_sources:
+                try:
+                    feed = feedparser.parse(source['url'])
+                    if feed.entries:
+                        for i, entry in enumerate(feed.entries[:2]):  # فقط 2 خبر اول
+                            title = entry.get('title', 'No title')
+                            link = entry.get('link', 'No link')
+                            summary = entry.get('summary', 'No summary')
+                            
+                            # بررسی محتوای ویدیویی
+                            has_video = any(word in summary.lower() for word in ['ویدیو', 'فیلم', 'video', '.mp4', '.avi'])
+                            has_image = any(word in summary.lower() for word in ['تصویر', 'عکس', 'image', '.jpg', '.png'])
+                            
+                            debug_info.append({
+                                "source": source['name'],
+                                "index": i,
+                                "title": title[:100],
+                                "link_length": len(link),
+                                "summary_length": len(summary),
+                                "has_video": has_video,
+                                "has_image": has_image,
+                                "summary_preview": summary[:200]
+                            })
+                            
+                except Exception as e:
+                    debug_info.append({
+                        "source": source['name'],
+                        "error": str(e)
+                    })
+            
+            return debug_info
+        
+        result = loop.run_until_complete(debug_sources())
+        loop.close()
+        
+        return jsonify({
+            "status": "OK",
+            "debug_info": result,
+            "total_news_checked": len(result)
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "ERROR", "error": str(e)})
 def stats():
     return jsonify({
         "status": "OK",
@@ -546,13 +611,21 @@ async def process_and_send_news(bot, source, entry, news_hash):
             "اصلاحات": "Eslahat News"
         }.get(source['name'], source['name'])
 
+        # تنظیف لینک از کاراکترهای مشکل‌ساز
+        clean_link = link.replace('&amp;', '&')
+        
+        # بررسی اینکه آیا لینک مشکلی نداره
+        if len(clean_link) > 1000:
+            clean_link = clean_link[:1000]
+        
+        # فرمت پیام با لینک تمیز
         message_text = f"""📰 <b>{source_name_en}</b>
 
 <b>{title}</b>
 
 {summary}
 
-🔗 <a href="{link}">مشاهده کامل خبر</a>
+🔗 <a href="{clean_link}">مشاهده کامل خبر</a>
 
 🆔 @cafeshamss     
 کافه شمس ☕️🍪"""
@@ -567,6 +640,15 @@ async def process_and_send_news(bot, source, entry, news_hash):
         )
         
         # hash رو در فایل ذخیره نکن اینجا چون بالاتر ذخیره شده
+        
+        # اضافه کردن خبر به صف اخبار مهم برای ویدیو
+        news_data = {
+            "title": title,
+            "summary": summary,
+            "source": source['name'],
+            "link": clean_link
+        }
+        add_to_important_news(news_data)
         
         logging.info(f"✅ خبر ارسال شد از {source['name']}: {title}")
         return True
@@ -670,6 +752,58 @@ async def send_report(bot, stats, total_news_sent, sent_news_list):
         
     except Exception as e:
         logging.error(f"خطا در ارسال گزارش: {e}")
+
+def add_to_important_news(news_data):
+    """اضافه کردن خبر به صف اخبار مهم"""
+    global important_news_queue
+    
+    # کلمات کلیدی مهم
+    important_keywords = [
+        'فوری', 'مهم', 'خبر فوری', 'اعلام', 'تصویب', 'توافق', 'بحران',
+        'انتخابات', 'اقتصاد', 'سیاست', 'بین‌المللی', 'urgent', 'breaking',
+        'important', 'crisis', 'election', 'government'
+    ]
+    
+    title = news_data.get('title', '').lower()
+    summary = news_data.get('summary', '').lower()
+    
+    # بررسی اهمیت خبر
+    is_important = any(keyword in title or keyword in summary for keyword in important_keywords)
+    
+    if is_important and len(important_news_queue) < 10:
+        important_news_queue.append(news_data)
+        logging.info(f"✨ خبر مهم اضافه شد: {news_data.get('title', '')[:50]}...")
+
+@flask_app.route('/generate-video-clip')
+def generate_video_clip():
+    """تولید کلیپ ویدیویی از اخبار مهم"""
+    try:
+        if not important_news_queue:
+            return jsonify({
+                "status": "NO_NEWS",
+                "message": "هیچ خبر مهمی برای تولید ویدیو موجود نیست"
+            })
+        
+        return jsonify({
+            "status": "SUCCESS",
+            "message": "Video generation feature coming soon!",
+            "important_news_count": len(important_news_queue),
+            "news_preview": [news.get('title', '')[:50] + "..." for news in important_news_queue[:3]]
+        })
+            
+    except Exception as e:
+        return jsonify({"status": "ERROR", "error": str(e)})
+
+@flask_app.route('/video-queue-status')
+def video_queue_status():
+    """وضعیت صف اخبار مهم برای ویدیو"""
+    return jsonify({
+        "status": "OK",
+        "important_news_count": len(important_news_queue),
+        "news_titles": [news.get('title', '')[:50] + "..." for news in important_news_queue[:5]],
+        "can_generate_video": len(important_news_queue) >= 3,
+        "last_video_time": last_video_time
+    })
 
 if __name__ == "__main__":
     logging.info(f"🚀 Cafe Shams News Bot starting on port {PORT}")
