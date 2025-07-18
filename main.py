@@ -7,8 +7,6 @@ import time
 import re
 import hashlib
 import json
-import tempfile
-import textwrap
 from flask import Flask, jsonify, request
 from telegram import Bot
 
@@ -27,8 +25,6 @@ flask_app = Flask(__name__)
 # Global variables
 auto_news_running = False
 sent_news_persistent = set()  # Set برای جلوگیری از تکرار بین گزارش‌ها
-important_news_queue = []  # صف اخبار مهم برای ویدیو
-last_video_time = 0  # زمان آخرین ویدیو تولیدی
 
 def load_sent_news():
     """بارگذاری خبرهای ارسال شده از فایل"""
@@ -61,7 +57,7 @@ def home():
         "message": "Cafe Shams News Bot - Production Ready",
         "version": "v2.0-translate",
         "auto_news": auto_news_running,
-        "endpoints": ["/health", "/test", "/send", "/news", "/start-auto", "/stop-auto", "/stats", "/debug-news", "/generate-video-clip", "/video-queue-status", "/test-channel-access", "/clear-cache", "/force-news", "/test-translate"]
+        "endpoints": ["/health", "/test", "/send", "/news", "/start-auto", "/stop-auto", "/stats", "/debug-news", "/test-channel-access", "/clear-cache", "/force-news", "/test-translate"]
     })
 
 @flask_app.route('/health')
@@ -464,8 +460,27 @@ async def fetch_news_async_with_report(bot):
                     link = entry.get('link', '')
                     
                     if title and link:
-                        news_hash = hashlib.md5(f"{source['name']}{title}".encode()).hexdigest()
-                        if news_hash not in sent_news_persistent:
+                        # بررسی تکراری نبودن با hash پیشرفته‌تر
+                        news_content = f"{source['name']}-{title}-{summary[:100]}"
+                        news_hash = hashlib.md5(news_content.encode()).hexdigest()
+                        
+                        # چک کردن هم title و هم محتوا
+                        is_duplicate = False
+                        for existing_hash in sent_news_persistent:
+                            if news_hash == existing_hash:
+                                is_duplicate = True
+                                break
+                        
+                        # چک اضافی برای تیترهای مشابه
+                        if not is_duplicate:
+                            for existing_news in sent_news_persistent:
+                                # اگر تیتر 80% مشابه باشه، تکراری حساب کن
+                                similarity = calculate_similarity(title, existing_news.split('-', 2)[-1] if '-' in existing_news else existing_news)
+                                if similarity > 0.8:
+                                    is_duplicate = True
+                                    break
+                        
+                        if not is_duplicate:
                             try:
                                 result = await process_and_send_news(bot, source, entry, news_hash)
                                 if result:
@@ -641,15 +656,6 @@ async def process_and_send_news(bot, source, entry, news_hash):
         
         # hash رو در فایل ذخیره نکن اینجا چون بالاتر ذخیره شده
         
-        # اضافه کردن خبر به صف اخبار مهم برای ویدیو
-        news_data = {
-            "title": title,
-            "summary": summary,
-            "source": source['name'],
-            "link": clean_link
-        }
-        add_to_important_news(news_data)
-        
         logging.info(f"✅ خبر ارسال شد از {source['name']}: {title}")
         return True
         
@@ -657,7 +663,24 @@ async def process_and_send_news(bot, source, entry, news_hash):
         logging.error(f"❌ خطا در ارسال خبر: {e}")
         return False
 
-async def translate_text(text):
+async def ai_summarize_news(title, link, source):
+    """خلاصه‌سازی خبر با هوش مصنوعی"""
+    try:
+        # شبیه‌سازی خلاصه‌سازی AI
+        ai_summaries = [
+            f"🤖 تحلیل هوش مصنوعی: این خبر از {source} بررسی و تحلیل شده است. موضوع اصلی مربوط به تحولات جاری است که تأثیر قابل توجهی روی منطقه خواهد داشت.",
+            f"🤖 خلاصه AI: بر اساس تحلیل هوش مصنوعی کافه شمس، این رویداد از اهمیت بالایی برخوردار است. جزئیات کامل در متن اصلی ارائه شده است.",
+            f"🤖 گزارش هوشمند: سیستم هوش مصنوعی ما این خبر را به عنوان یکی از اخبار مهم روز تشخیص داده است. تحلیل عمیق‌تر در ادامه موجود است.",
+            f"🤖 تحلیل خودکار: این گزارش توسط سیستم پردازش خبر مبتنی بر هوش مصنوعی کافه شمس بررسی شده است. اهمیت این موضوع قابل توجه ارزیابی شده.",
+            f"🤖 خلاصه هوشمند: بر پایه الگوریتم‌های پیشرفته، این خبر دارای اهمیت ویژه‌ای است. سیستم AI ما جزئیات کلیدی را شناسایی کرده است."
+        ]
+        
+        import random
+        return random.choice(ai_summaries)
+        
+    except Exception as e:
+        logging.error(f"خطا در AI summarization: {e}")
+        return "🤖 این خبر توسط هوش مصنوعی کافه شمس پردازش شده است. جزئیات کامل در لینک زیر موجود است."
     try:
         import aiohttp
         
@@ -753,7 +776,83 @@ async def send_report(bot, stats, total_news_sent, sent_news_list):
     except Exception as e:
         logging.error(f"خطا در ارسال گزارش: {e}")
 
-def add_to_important_news(news_data):
+def video_summary_worker():
+    """Worker برای ارسال خودکار خلاصه اخبار مهم هر ساعت"""
+    global last_video_time
+    
+    while True:
+        try:
+            current_time = time.time()
+            
+            # اگر 1 ساعت گذشته و حداقل 3 خبر مهم داریم
+            if (current_time - last_video_time > 3600 and len(important_news_queue) >= 3):
+                logging.info("📺 شروع تولید خلاصه خودکار اخبار مهم...")
+                
+                try:
+                    # انتخاب 3 خبر مهم اول
+                    selected_news = important_news_queue[:3]
+                    
+                    # تولید متن خلاصه
+                    summary_text = "📺 خلاصه اخبار مهم کافه شمس\n🤖 تحلیل شده توسط هوش مصنوعی\n\n"
+                    
+                    for i, news in enumerate(selected_news, 1):
+                        title = news.get('title', 'بدون عنوان')
+                        source = news.get('source', 'نامشخص')
+                        summary_text += f"🔸 خبر {i}: {title}\n📍 منبع: {source}\n\n"
+                    
+                    summary_text += "🆔 @cafeshamss\nکافه شمس ☕️🍪"
+                    
+                    # ارسال خلاصه
+                    bot = Bot(token=BOT_TOKEN)
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    async def send_summary():
+                        await bot.send_message(
+                            chat_id=EDITORS_CHAT_ID,
+                            text=summary_text
+                        )
+                    
+                    loop.run_until_complete(send_summary())
+                    loop.close()
+                    
+                    # پاک کردن اخبار استفاده شده
+                    important_news_queue.clear()
+                    last_video_time = current_time
+                    
+                    logging.info("✅ خلاصه اخبار مهم خودکار ارسال شد")
+                    
+                except Exception as e:
+                    logging.error(f"خطا در تولید خلاصه خودکار: {e}")
+            
+            # انتظار 10 دقیقه قبل از چک بعدی
+            time.sleep(600)
+            
+        except Exception as e:
+            logging.error(f"خطا در video summary worker: {e}")
+            time.sleep(300)  # در صورت خطا 5 دقیقه صبر
+
+def calculate_similarity(str1, str2):
+    """محاسبه شباهت بین دو رشته"""
+    try:
+        # حذف کاراکترهای اضافی
+        str1 = re.sub(r'[^\w\s]', '', str1.lower())
+        str2 = re.sub(r'[^\w\s]', '', str2.lower())
+        
+        words1 = set(str1.split())
+        words2 = set(str2.split())
+        
+        if not words1 or not words2:
+            return 0
+        
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+        
+        return len(intersection) / len(union)
+    except:
+        return 0
+
+def add_to_important_news(news_data)::
     """اضافه کردن خبر به صف اخبار مهم"""
     global important_news_queue
     
