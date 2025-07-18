@@ -776,7 +776,7 @@ def add_to_important_news(news_data):
 
 @flask_app.route('/generate-video-clip')
 def generate_video_clip():
-    """تولید کلیپ ویدیویی از اخبار مهم"""
+    """تولید کلیپ ویدیویی از اخبار مهم - نسخه ساده"""
     try:
         if not important_news_queue:
             return jsonify({
@@ -784,11 +784,42 @@ def generate_video_clip():
                 "message": "هیچ خبر مهمی برای تولید ویدیو موجود نیست"
             })
         
+        # انتخاب 3 خبر مهم اول
+        selected_news = important_news_queue[:3]
+        
+        # تولید متن خلاصه برای ارسال به جای ویدیو
+        summary_text = "📺 خلاصه اخبار مهم کافه شمس\n\n"
+        
+        for i, news in enumerate(selected_news, 1):
+            title = news.get('title', 'بدون عنوان')
+            source = news.get('source', 'نامشخص')
+            summary_text += f"🔸 خبر {i}: {title}\n📍 منبع: {source}\n\n"
+        
+        summary_text += "🆔 @cafeshamss\nکافه شمس ☕️🍪"
+        
+        # ارسال خلاصه به جای ویدیو
+        bot = Bot(token=BOT_TOKEN)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def send_summary():
+            await bot.send_message(
+                chat_id=EDITORS_CHAT_ID,
+                text=summary_text,
+                parse_mode='HTML'
+            )
+        
+        loop.run_until_complete(send_summary())
+        loop.close()
+        
+        # پاک کردن اخبار استفاده شده
+        important_news_queue.clear()
+        
         return jsonify({
             "status": "SUCCESS",
-            "message": "Video generation feature coming soon!",
-            "important_news_count": len(important_news_queue),
-            "news_preview": [news.get('title', '')[:50] + "..." for news in important_news_queue[:3]]
+            "message": "خلاصه اخبار مهم ارسال شد",
+            "news_count": len(selected_news),
+            "format": "text_summary"
         })
             
     except Exception as e:
@@ -817,4 +848,65 @@ if __name__ == "__main__":
     auto_thread = threading.Thread(target=auto_news_worker, daemon=True)
     auto_thread.start()
     
+    # شروع worker خودکار برای تولید خلاصه اخبار مهم
+    logging.info("🎬 Starting video summary worker...")
+    video_thread = threading.Thread(target=video_summary_worker, daemon=True)
+    video_thread.start()
+    
     flask_app.run(host="0.0.0.0", port=PORT, debug=False)
+
+def video_summary_worker():
+    """Worker برای ارسال خودکار خلاصه اخبار مهم هر ساعت"""
+    global last_video_time
+    
+    while True:
+        try:
+            current_time = time.time()
+            
+            # اگر 1 ساعت گذشته و حداقل 3 خبر مهم داریم
+            if (current_time - last_video_time > 3600 and len(important_news_queue) >= 3):
+                logging.info("📺 شروع تولید خلاصه خودکار اخبار مهم...")
+                
+                try:
+                    # انتخاب 3 خبر مهم اول
+                    selected_news = important_news_queue[:3]
+                    
+                    # تولید متن خلاصه
+                    summary_text = "📺 خلاصه اخبار مهم کافه شمس\n\n"
+                    
+                    for i, news in enumerate(selected_news, 1):
+                        title = news.get('title', 'بدون عنوان')
+                        source = news.get('source', 'نامشخص')
+                        summary_text += f"🔸 خبر {i}: {title}\n📍 منبع: {source}\n\n"
+                    
+                    summary_text += "🆔 @cafeshamss\nکافه شمس ☕️🍪"
+                    
+                    # ارسال خلاصه
+                    bot = Bot(token=BOT_TOKEN)
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    async def send_summary():
+                        await bot.send_message(
+                            chat_id=EDITORS_CHAT_ID,
+                            text=summary_text
+                        )
+                    
+                    loop.run_until_complete(send_summary())
+                    loop.close()
+                    
+                    # پاک کردن اخبار استفاده شده
+                    important_news_queue.clear()
+                    last_video_time = current_time
+                    
+                    logging.info("✅ خلاصه اخبار مهم خودکار ارسال شد")
+                    
+                except Exception as e:
+                    logging.error(f"خطا در تولید خلاصه خودکار: {e}")
+            
+            # انتظار 10 دقیقه قبل از چک بعدی
+            time.sleep(600)
+            
+        except Exception as e:
+            logging.error(f"خطا در video summary worker: {e}")
+            time.sleep(300)  # در صورت خطا 5 دقیقه صبر
